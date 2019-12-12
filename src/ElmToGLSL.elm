@@ -9,6 +9,15 @@ import Elm.Data.Type as Type
 import GLSL.AST
 
 
+vec4Type : Type.Type
+vec4Type =
+    Type.UserDefinedType
+        { module_ = ""
+        , name = "Vec4"
+        }
+        []
+
+
 uniformsType : Type.Type
 uniformsType =
     Type.UserDefinedType
@@ -29,11 +38,7 @@ varyingsType =
 
 fragmentShaderOutputType : Type.Type
 fragmentShaderOutputType =
-    Type.UserDefinedType
-        { module_ = ""
-        , name = "FragmentShaderOutput"
-        }
-        []
+    Type.Tuple3 Type.Float Type.Float Type.Float
 
 
 testElmAst : Elm.Data.Module.Module Elm.Expr
@@ -54,8 +59,12 @@ testElmAst =
                                 ( Elm.Lambda
                                     { argument = "varyings"
                                     , body =
-                                        ( Elm.Int 3
-                                        , Type.Int
+                                        -- red
+                                        ( Elm.Tuple3
+                                            ( Elm.Float 1, Type.Float )
+                                            ( Elm.Float 0, Type.Float )
+                                            ( Elm.Float 0, Type.Float )
+                                        , fragmentShaderOutputType
                                         )
                                     }
                                 , Type.Function varyingsType fragmentShaderOutputType
@@ -69,3 +78,37 @@ testElmAst =
               )
             ]
     }
+
+
+elmToGLSL : String -> Elm.Data.Module.Module Elm.Expr -> Result String GLSL.AST.EmbeddedBlock
+elmToGLSL targetName elmModule =
+    case Dict.get targetName elmModule.declarations of
+        Nothing ->
+            Err "no target"
+
+        Just targetDeclaration ->
+            case targetDeclaration.body of
+                Elm.Data.Declaration.Value expr ->
+                    fragmentShaderElmToGLSL expr elmModule
+
+                _ ->
+                    Err "target is not a declaration"
+
+
+fragmentShaderElmToGLSL : Elm.Expr -> Elm.Data.Module.Module Elm.Expr -> Result String GLSL.AST.EmbeddedBlock
+fragmentShaderElmToGLSL expr elmModule =
+    expr
+        |> Tuple.second
+        |> uncurryType
+        |> Debug.toString
+        |> Err
+
+
+uncurryType : Type.Type -> List Type.Type
+uncurryType type_ =
+    case type_ of
+        Type.Function inType outType ->
+            inType :: uncurryType outType
+
+        _ ->
+            [ type_ ]
