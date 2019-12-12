@@ -9,6 +9,33 @@ import Elm.Data.Type as Type
 import GLSL.AST
 
 
+uniformsType : Type.Type
+uniformsType =
+    Type.UserDefinedType
+        { module_ = ""
+        , name = "Uniforms"
+        }
+        []
+
+
+varyingsType : Type.Type
+varyingsType =
+    Type.UserDefinedType
+        { module_ = ""
+        , name = "Varyings"
+        }
+        []
+
+
+fragmentShaderOutputType : Type.Type
+fragmentShaderOutputType =
+    Type.UserDefinedType
+        { module_ = ""
+        , name = "FragmentShaderOutput"
+        }
+        []
+
+
 testElmAst : Elm.Data.Module.Module Elm.Expr
 testElmAst =
     { name = "SomeShaderModule"
@@ -18,58 +45,26 @@ testElmAst =
     , type_ = Elm.Data.Module.PlainModule
     , declarations =
         Dict.fromList
-            [ ( "floatToVec4"
+            [ ( "someFragmentShader"
               , { body =
                     Elm.Data.Declaration.Value
                         ( Elm.Lambda
-                            { argument = "f"
-                            , body =
-                                ( Elm.Plus
-                                    ( Elm.Argument "f", Type.Int )
-                                    ( Elm.Int 2, Type.Int )
-                                , Type.Int
-                                )
-                            }
-                        , Type.Function Type.Int Type.Int
-                        )
-                , module_ = "Shader"
-                , name = "floatToVec4"
-                }
-              )
-            , ( "shader_Color"
-              , { body =
-                    Elm.Data.Declaration.Value
-                        ( Elm.Lambda
-                            { argument = "attribute_color"
+                            { argument = "uniforms"
                             , body =
                                 ( Elm.Lambda
-                                    { argument = "uniform_shade"
+                                    { argument = "varyings"
                                     , body =
-                                        ( Elm.Lambda
-                                            { argument = "varying_position"
-                                            , body =
-                                                ( Elm.Plus
-                                                    ( Elm.Plus
-                                                        ( Elm.Argument "attribute_color", Type.Int )
-                                                        ( Elm.Argument "uniform_shade", Type.Int )
-                                                    , Type.Int
-                                                    )
-                                                    ( Elm.Int 2
-                                                    , Type.Int
-                                                    )
-                                                , Type.Int
-                                                )
-                                            }
-                                        , Type.Function (Type.Var 10) Type.Int
+                                        ( Elm.Int 3
+                                        , Type.Int
                                         )
                                     }
-                                , Type.Function Type.Int (Type.Function (Type.Var 10) Type.Int)
+                                , Type.Function varyingsType fragmentShaderOutputType
                                 )
                             }
-                        , Type.Function Type.Int (Type.Function Type.Int (Type.Function (Type.Var 10) Type.Int))
+                        , Type.Function uniformsType (Type.Function varyingsType fragmentShaderOutputType)
                         )
-                , module_ = "Shader"
-                , name = "shader_Color"
+                , module_ = "SomeShaderModule"
+                , name = "someFragmentShader"
                 }
               )
             ]
