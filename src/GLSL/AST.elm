@@ -10,7 +10,8 @@ type alias EmbeddedBlock =
     , attributes : List ( Type, Name )
     , uniforms : List ( Type, Name )
     , varyings : List ( Type, Name )
-    , declarations : List Declaration
+    , mainDeclaration : DeclarationBody
+    , otherDeclarations : List Declaration
     }
 
 
@@ -22,10 +23,10 @@ type alias Declaration =
 
 
 type DeclarationBody
-    = Variable
-        { maybeInit : Expr
+    = DeclarationVariable
+        { maybeInit : Maybe Expr
         }
-    | Function
+    | DeclarationFunction
         { args : List ( Type, Name )
         , body : List Statement
         }
@@ -45,22 +46,24 @@ type Type
 
 type Statement
     = StatementDeclaration Declaration
+    | Assign Name Expr
     | ForLoop {}
-    | If {}
+    | If
+        { test : Expr
+        , then_ : Statement
+        , else_ : Maybe Statement
+        }
     | Return Expr
 
 
 type Expr
-    = Literal Literal
-    | Unary Unary Expr
-    | Infix Infix Expr Expr
-    | FunctionCall Name (List Expr)
-
-
-type Literal
     = LiteralInt Int
     | LiteralFloat Float
     | LiteralBool Bool
+    | Variable Name
+    | Unary Unary Expr
+    | Infix Infix Expr Expr
+    | FunctionCall Name (List Expr)
 
 
 type Unary
