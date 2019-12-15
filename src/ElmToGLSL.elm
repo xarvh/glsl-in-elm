@@ -278,7 +278,9 @@ translateType elmType state =
 
 
 type alias GlslArg =
-    { type_ : GLSL.Type, name : GLSL.Name }
+    { type_ : GLSL.Type
+    , name : GLSL.Name
+    }
 
 
 translateExpression : List GlslArg -> Elm.Expr -> State -> ( { args : List GlslArg, expr : GLSL.Expr }, State )
@@ -299,7 +301,7 @@ translateExpression functionArgs ( expr_, elmType ) state =
                 Just argElmType ->
                     state
                         |> translateType argElmType
-                        |> map (\glslType -> translateExpression (( glslType, argument ) :: functionArgs) body)
+                        |> map (\glslType -> translateExpression (GlslArg glslType argument :: functionArgs) body)
 
         Elm.If elmArgs ->
             case uncurryType elmType of
@@ -314,12 +316,14 @@ translateExpression functionArgs ( expr_, elmType ) state =
                             )
                         |> andMapState
                             (\( varName, ( test, then_, else_ ) ) ->
-                                ( GLSL.Variable varName
+                                ( { args = functionArgs
+                                  , expr = GLSL.Variable varName
+                                  }
                                 , addStatement
                                     (GLSL.If
-                                        { test = test
-                                        , then_ = GLSL.Assign varName then_
-                                        , else_ = Just <| GLSL.Assign varName else_
+                                        { test = test.expr
+                                        , then_ = GLSL.Assign varName then_.expr
+                                        , else_ = Just <| GLSL.Assign varName else_.expr
                                         }
                                     )
                                 )
