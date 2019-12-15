@@ -16,17 +16,26 @@ view model =
 --             [ textarea
 --                 [ Html.Events.onInput OnInput ]
 --                 [ text model ]
-            [ case ElmToGLSL.elmToGLSL "someFragmentShader" ElmToGLSL.testElmAst of
-                Err blah ->
-                    div
-                        []
-                        [ text blah ]
-
-                Ok stuff ->
-                    div
-                        []
-                        [ text (Debug.toString stuff) ]
+--             [ case ElmToGLSL.translateExpression ElmToGLSL.testElmAst of
+--                 Err blah ->
+--                     div
+--                         []
+--                         [ text blah ]
+-- 
+--                 Ok stuff ->
+--                     div
+--                         []
+--                         [ text (Debug.toString stuff) ]
+--             ]
+            [   ElmToGLSL.stateInit
+                  |> ElmToGLSL.translateExpression [] ElmToGLSL.testExpression
+                  |> Debug.toString
+                  |> text
+                  |> List.singleton
+                  |> div []
             ]
+
+
         , node "style" [] [ text css ]
         ]
 

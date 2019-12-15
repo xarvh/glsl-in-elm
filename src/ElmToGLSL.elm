@@ -63,6 +63,22 @@ fragmentShaderOutputType =
     Type.Tuple3 Type.Float Type.Float Type.Float
 
 
+testExpression : Elm.Expr
+testExpression =
+    ( Elm.Lambda
+        { argument = "uniforms"
+        , body =
+            ( Elm.Lambda
+                { argument = "varyings"
+                , body = ( Elm.Int 1, Type.Int )
+                }
+            , Type.Function varyingsType fragmentShaderOutputType
+            )
+        }
+    , Type.Function uniformsType (Type.Function varyingsType fragmentShaderOutputType)
+    )
+
+
 testElmAst : Elm.Data.Module.Module Elm.Expr
 testElmAst =
     { name = "SomeShaderModule"
@@ -102,63 +118,64 @@ testElmAst =
     }
 
 
-elmFunctionToGlslEmbeddedBlock : String -> Elm.Data.Module.Module Elm.Expr -> Result String GLSL.EmbeddedBlock
-elmFunctionToGlslEmbeddedBlock targetName elmModule =
-    case Dict.get targetName elmModule.declarations of
-        Nothing ->
-            Err "no target"
 
-        Just targetDeclaration ->
-            case targetDeclaration.body of
-                Elm.Data.Declaration.Value expr ->
-                    fragmentShader targetName expr elmModule
+{-
+   elmFunctionToGlslEmbeddedBlock : String -> Elm.Data.Module.Module Elm.Expr -> Result String GLSL.EmbeddedBlock
+   elmFunctionToGlslEmbeddedBlock targetName elmModule =
+       case Dict.get targetName elmModule.declarations of
+           Nothing ->
+               Err "no target"
 
-                _ ->
-                    Err "target is not a declaration"
+           Just targetDeclaration ->
+               case targetDeclaration.body of
+                   Elm.Data.Declaration.Value expr ->
+                       fragmentShader targetName expr elmModule
 
-
-fragmentShader : String -> Elm.Expr -> Elm.Data.Module.Module Elm.Expr -> Result String FragmentShaderBlock
-fragmentShader targetName ( body, type_ ) elmModule =
-    case uncurryType type_ of
-        uniforms :: varyings :: output :: [] ->
-            if output /= fragmentShaderOutputType then
-                Err "output type does not match fragmentShaderOutputType"
-
-            else
-                -- TODO get the type definitions for uniforms and varyings, ensure they are suitable records, pass them to bodyToGLSL
-                body
-                    |> elmExprToShaderBlock elmModule
-                    |> Result.map
-                        (\embeddedBlock ->
-                            { name = "glsl_" ++ targetName
-                            , uniforms = uniforms
-                            , varyings = varyings
-                            , glsl = embeddedBlock
-                            }
-                        )
-
-        anythingElse ->
-            anythingElse
-                |> Debug.toString
-                |> (++) "Wrong type for a fragment shader: "
-                |> Err
+                   _ ->
+                       Err "target is not a declaration"
 
 
-elmExprToShaderBlock : Elm.Expr_ -> Result String FragmentShaderBlock
-elmExprToShaderBlock expr_ =
-    let
-        mainBody =
-            declaration expr_
-    in
-    Err "LOL"
+   fragmentShader : String -> Elm.Expr -> Elm.Data.Module.Module Elm.Expr -> Result String FragmentShaderBlock
+   fragmentShader targetName ( body, type_ ) elmModule =
+       case uncurryType type_ of
+           uniforms :: varyings :: output :: [] ->
+               if output /= fragmentShaderOutputType then
+                   Err "output type does not match fragmentShaderOutputType"
+
+               else
+                   -- TODO get the type definitions for uniforms and varyings, ensure they are suitable records, pass them to bodyToGLSL
+                   body
+                       |> elmExprToShaderBlock elmModule
+                       |> Result.map
+                           (\embeddedBlock ->
+                               { name = "glsl_" ++ targetName
+                               , uniforms = uniforms
+                               , varyings = varyings
+                               , glsl = embeddedBlock
+                               }
+                           )
+
+           anythingElse ->
+               anythingElse
+                   |> Debug.toString
+                   |> (++) "Wrong type for a fragment shader: "
+                   |> Err
 
 
-declaration : Elm.Expr -> Result String { body : GLSL.DeclarationBody, requiredSymbols : List String }
-declaration ( expr_, type_ ) =
-    Err "LOL"
+   elmExprToShaderBlock : Elm.Expr_ -> Result String FragmentShaderBlock
+   elmExprToShaderBlock expr_ =
+       let
+           mainBody =
+               declaration expr_
+       in
+       Err "LOL"
 
 
+   declaration : Elm.Expr -> Result String { body : GLSL.DeclarationBody, requiredSymbols : List String }
+   declaration ( expr_, type_ ) =
+       Err "LOL"
 
+-}
 ----
 ---- STATE
 ----
@@ -167,6 +184,13 @@ declaration ( expr_, type_ ) =
 type alias State =
     { statements : List GLSL.Statement
     , nextAutoVariable : Int
+    }
+
+
+stateInit : State
+stateInit =
+    { statements = []
+    , nextAutoVariable = 0
     }
 
 
@@ -253,16 +277,29 @@ translateType elmType state =
     ( GLSL.Int, state )
 
 
-translateExpression : Elm.Expr -> State -> ( GLSL.Expr, State )
-translateExpression ( expr_, elmType ) state =
+type alias GlslArg =
+    { type_ : GLSL.Type, name : GLSL.Name }
+
+
+translateExpression : List GlslArg -> Elm.Expr -> State -> ( { args : List GlslArg, expr : GLSL.Expr }, State )
+translateExpression functionArgs ( expr_, elmType ) state =
     case expr_ of
         Elm.Int n ->
-            ( GLSL.LiteralInt n
+            ( { args = functionArgs
+              , expr = GLSL.LiteralInt n
+              }
             , state
             )
 
         Elm.Lambda { argument, body } ->
-            ()
+            case elmType |> uncurryType |> List.head of
+                Nothing ->
+                    Debug.todo "This should not happen?"
+
+                Just argElmType ->
+                    state
+                        |> translateType argElmType
+                        |> map (\glslType -> translateExpression (( glslType, argument ) :: functionArgs) body)
 
         Elm.If elmArgs ->
             case uncurryType elmType of
@@ -271,9 +308,9 @@ translateExpression ( expr_, elmType ) state =
                         |> chain2
                             (translateType nonFunctionType >> map addAutoVariable)
                             (chain3
-                                (translateExpression elmArgs.test)
-                                (translateExpression elmArgs.then_)
-                                (translateExpression elmArgs.else_)
+                                (translateExpression [] elmArgs.test)
+                                (translateExpression [] elmArgs.then_)
+                                (translateExpression [] elmArgs.else_)
                             )
                         |> andMapState
                             (\( varName, ( test, then_, else_ ) ) ->
@@ -292,4 +329,4 @@ translateExpression ( expr_, elmType ) state =
                     Debug.todo "I don't know what to do in this case"
 
         _ ->
-            Debug.todo ""
+            Debug.todo (Debug.toString expr_)
