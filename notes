@@ -1,0 +1,11 @@
+
+BlockAccumulator
+  -- functions are added only once they are complete
+  list functions
+  next auto function index
+
+FunctionAccumulator
+  block accumulator
+  variables
+  next auto variable name
+

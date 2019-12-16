@@ -119,162 +119,153 @@ testElmAst =
 
 
 
-{-
-   elmFunctionToGlslEmbeddedBlock : String -> Elm.Data.Module.Module Elm.Expr -> Result String GLSL.EmbeddedBlock
-   elmFunctionToGlslEmbeddedBlock targetName elmModule =
-       case Dict.get targetName elmModule.declarations of
-           Nothing ->
-               Err "no target"
-
-           Just targetDeclaration ->
-               case targetDeclaration.body of
-                   Elm.Data.Declaration.Value expr ->
-                       fragmentShader targetName expr elmModule
-
-                   _ ->
-                       Err "target is not a declaration"
-
-
-   fragmentShader : String -> Elm.Expr -> Elm.Data.Module.Module Elm.Expr -> Result String FragmentShaderBlock
-   fragmentShader targetName ( body, type_ ) elmModule =
-       case uncurryType type_ of
-           uniforms :: varyings :: output :: [] ->
-               if output /= fragmentShaderOutputType then
-                   Err "output type does not match fragmentShaderOutputType"
-
-               else
-                   -- TODO get the type definitions for uniforms and varyings, ensure they are suitable records, pass them to bodyToGLSL
-                   body
-                       |> elmExprToShaderBlock elmModule
-                       |> Result.map
-                           (\embeddedBlock ->
-                               { name = "glsl_" ++ targetName
-                               , uniforms = uniforms
-                               , varyings = varyings
-                               , glsl = embeddedBlock
-                               }
-                           )
-
-           anythingElse ->
-               anythingElse
-                   |> Debug.toString
-                   |> (++) "Wrong type for a fragment shader: "
-                   |> Err
-
-
-   elmExprToShaderBlock : Elm.Expr_ -> Result String FragmentShaderBlock
-   elmExprToShaderBlock expr_ =
-       let
-           mainBody =
-               declaration expr_
-       in
-       Err "LOL"
-
-
-   declaration : Elm.Expr -> Result String { body : GLSL.DeclarationBody, requiredSymbols : List String }
-   declaration ( expr_, type_ ) =
-       Err "LOL"
-
--}
 ----
----- STATE
+---- Block Accumulator
 ----
 
 
-type alias State =
-    { statements : List GLSL.Statement
-    , nextAutoVariable : Int
+type alias BlockAccumulator =
+    { functions : List GLSL.Declaration
+
+    -- TODO struct declarations
+    , nextAutoName : Int
     }
 
 
-stateInit : State
-stateInit =
-    { statements = []
-    , nextAutoVariable = 0
+initBlockAccumulator : BlockAccumulator
+initBlockAccumulator =
+    { functions = []
+    , nextAutoName = 0
     }
 
 
-map : (a -> State -> ( b, State )) -> ( a, State ) -> ( b, State )
-map f ( a, state ) =
-    f a state
-
-
-andMapState : (a -> ( b, State -> State )) -> ( a, State ) -> ( b, State )
-andMapState f ( a, state ) =
+newAutoName : { isFunction : Bool } -> BlockAccumulator -> ( BlockAccumulator, GLSL.Name )
+newAutoName { isFunction } block =
     let
-        ( b, updateState ) =
-            f a
+        prefix =
+            if isFunction then
+                "F"
+
+            else
+                "V"
+
+        name =
+            prefix ++ String.fromInt block.nextAutoName
     in
-    ( b, updateState state )
+    ( { block | nextAutoName = block.nextAutoName + 1 }
+    , name
+    )
 
 
-chain2 : (State -> ( a, State )) -> (State -> ( b, State )) -> State -> ( ( a, b ), State )
-chain2 fa fb s0 =
+
+----
+---- Function Accumulator
+----
+
+
+type alias FunAcc =
+    { blockAccumulator : BlockAccumulator
+    , statements : List GLSL.Statement
+    }
+
+
+initFunctionAccumulator : BlockAccumulator -> FunAcc
+initFunctionAccumulator blockAccumulator =
+    { blockAccumulator = blockAccumulator
+    , statements = []
+    }
+
+
+addStatement : GLSL.Statement -> FunAcc -> FunAcc
+addStatement statement accum =
+    { accum | statements = statement :: accum.statements }
+
+
+addAutoVariable : GLSL.Type -> FunAcc -> ( GLSL.Name, FunAcc )
+addAutoVariable type_ fa =
     let
-        ( a, s1 ) =
-            fa s0
+        ( block, name ) =
+            newAutoName { isFunction = False } fa.blockAccumulator
 
-        ( b, s2 ) =
-            fb s1
-    in
-    ( ( a, b ), s2 )
-
-
-chain3 : (State -> ( a, State )) -> (State -> ( b, State )) -> (State -> ( c, State )) -> State -> ( ( a, b, c ), State )
-chain3 fa fb fc s0 =
-    let
-        ( a, s1 ) =
-            fa s0
-
-        ( b, s2 ) =
-            fb s1
-
-        ( c, s3 ) =
-            fc s2
-    in
-    ( ( a, b, c ), s3 )
-
-
-
---
-
-
-addStatement : GLSL.Statement -> State -> State
-addStatement statement state =
-    { state | statements = statement :: state.statements }
-
-
-addAutoVariable : GLSL.Type -> State -> ( GLSL.Name, State )
-addAutoVariable type_ s =
-    let
-        variableIndex =
-            s.nextAutoVariable
-
-        variableName =
-            "A" ++ String.fromInt variableIndex
-
-        variableDeclaration =
+        statement =
             GLSL.StatementDeclaration
                 { type_ = type_
-                , name = variableName
+                , name = name
                 , body = GLSL.DeclarationVariable { maybeInit = Nothing }
                 }
     in
-    ( variableName
-    , { s
-        | statements = variableDeclaration :: s.statements
-        , nextAutoVariable = variableIndex + 1
+    ( name
+    , { fa
+        | blockAccumulator = block
+        , statements = statement :: fa.statements
       }
     )
 
 
 
+----
+---- Tuple
+----
+
+
+type alias FunAccMonad a =
+    ( a, FunAcc )
+
+
+chain : (FunAcc -> FunAccMonad new) -> FunAccMonad old -> FunAccMonad ( old, new )
+chain f ( old, oldAccum ) =
+    let
+        ( new, newAccum ) =
+            f oldAccum
+    in
+    ( ( old, new ), newAccum )
+
+
+useAndChain : (old -> FunAcc -> FunAccMonad new) -> FunAccMonad old -> FunAccMonad ( old, new )
+useAndChain f ( old, oldAccum ) =
+    chain (f old) ( old, oldAccum )
+
+
+andThen : (a -> FunAcc -> FunAccMonad b) -> FunAccMonad a -> FunAccMonad b
+andThen f ( a, accum ) =
+    f a accum
+
+
+andThen2 : (a -> b -> FunAcc -> FunAccMonad c) -> FunAccMonad ( a, b ) -> FunAccMonad c
+andThen2 f ( ( a, b ), accum ) =
+    f a b accum
+
+
+andThen3 : (a -> b -> c -> FunAcc -> FunAccMonad d) -> FunAccMonad ( ( a, b ), c ) -> FunAccMonad d
+andThen3 f ( ( ( a, b ), c ), accum ) =
+    f a b c accum
+
+
+andThen4 : (a -> b -> c -> d -> FunAcc -> FunAccMonad e) -> FunAccMonad ( ( ( a, b ), c ), d ) -> FunAccMonad e
+andThen4 f ( ( ( ( a, b ), c ), d ), accum ) =
+    f a b c d accum
+
+
+andThen5 : (a -> b -> c -> d -> e -> FunAcc -> FunAccMonad f) -> FunAccMonad ( ( ( ( a, b ), c ), d ), e ) -> FunAccMonad f
+andThen5 f ( ( ( ( ( a, b ), c ), d ), e ), accum ) =
+    f a b c d e accum
+
+
+
+---
+--- Translate Type
 ---
 
 
-translateType : Type.Type -> State -> ( GLSL.Type, State )
+translateType : Type.Type -> FunAcc -> ( GLSL.Type, FunAcc )
 translateType elmType state =
     ( GLSL.Int, state )
+
+
+
+--
+-- Translate Expression
+--
 
 
 type alias GlslArg =
@@ -283,14 +274,15 @@ type alias GlslArg =
     }
 
 
-translateExpression : List GlslArg -> Elm.Expr -> State -> ( { args : List GlslArg, expr : GLSL.Expr }, State )
-translateExpression functionArgs ( expr_, elmType ) state =
+translateExpression : List GlslArg -> Elm.Expr -> FunAcc -> ( { args : List GlslArg, expr : GLSL.Expr, type_ : GLSL.Type }, FunAcc )
+translateExpression functionArgs ( expr_, elmType ) accum =
     case expr_ of
         Elm.Int n ->
             ( { args = functionArgs
               , expr = GLSL.LiteralInt n
+              , type_ = GLSL.Int
               }
-            , state
+            , accum
             )
 
         Elm.Lambda { argument, body } ->
@@ -299,33 +291,33 @@ translateExpression functionArgs ( expr_, elmType ) state =
                     Debug.todo "This should not happen?"
 
                 Just argElmType ->
-                    state
+                    accum
                         |> translateType argElmType
-                        |> map (\glslType -> translateExpression (GlslArg glslType argument :: functionArgs) body)
+                        |> andThen (\glslType -> translateExpression (GlslArg glslType argument :: functionArgs) body)
 
         Elm.If elmArgs ->
             case uncurryType elmType of
                 [ nonFunctionType ] ->
-                    state
-                        |> chain2
-                            (translateType nonFunctionType >> map addAutoVariable)
-                            (chain3
-                                (translateExpression [] elmArgs.test)
-                                (translateExpression [] elmArgs.then_)
-                                (translateExpression [] elmArgs.else_)
-                            )
-                        |> andMapState
-                            (\( varName, ( test, then_, else_ ) ) ->
+                    accum
+                        |> translateType nonFunctionType
+                        |> useAndChain addAutoVariable
+                        |> chain (translateExpression [] elmArgs.test)
+                        |> chain (translateExpression [] elmArgs.then_)
+                        |> chain (translateExpression [] elmArgs.else_)
+                        |> andThen5
+                            (\glslType autoVarName test then_ else_ newAccum ->
                                 ( { args = functionArgs
-                                  , expr = GLSL.Variable varName
+                                  , expr = GLSL.Variable autoVarName
+                                  , type_ = glslType
                                   }
-                                , addStatement
-                                    (GLSL.If
-                                        { test = test.expr
-                                        , then_ = GLSL.Assign varName then_.expr
-                                        , else_ = Just <| GLSL.Assign varName else_.expr
-                                        }
-                                    )
+                                , newAccum
+                                    |> addStatement
+                                        (GLSL.If
+                                            { test = test.expr
+                                            , then_ = GLSL.Assign autoVarName then_.expr
+                                            , else_ = Just <| GLSL.Assign autoVarName else_.expr
+                                            }
+                                        )
                                 )
                             )
 
@@ -334,3 +326,24 @@ translateExpression functionArgs ( expr_, elmType ) state =
 
         _ ->
             Debug.todo (Debug.toString expr_)
+
+
+translateDeclaration : Elm.Data.Declaration.Declaration Elm.Expr -> BlockAccumulator -> BlockAccumulator
+translateDeclaration elmDeclaration =
+    case elmDeclaration.body of
+        Elm.Data.Declaration.Value elmExpr ->
+            let
+                -- TODO is it correct to use initBlockAccumulator?
+                ( { args, expr, type_ }, scope ) =
+                    translateExpression [] elmExpr (initFunctionAccumulator initBlockAccumulator)
+
+                mainDeclaration =
+                    { type_ = type_
+                    , name = elmDeclaration.name
+                    , body = expr
+                    }
+            in
+            Debug.todo ""
+
+        _ ->
+            Debug.todo "ni"

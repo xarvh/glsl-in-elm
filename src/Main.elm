@@ -27,7 +27,7 @@ view model =
 --                         []
 --                         [ text (Debug.toString stuff) ]
 --             ]
-            [   ElmToGLSL.stateInit
+            [   ElmToGLSL.initFunctionAccumulator ElmToGLSL.initBlockAccumulator
                   |> ElmToGLSL.translateExpression [] ElmToGLSL.testExpression
                   |> Debug.toString
                   |> text
