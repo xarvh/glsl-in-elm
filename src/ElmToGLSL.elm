@@ -174,11 +174,13 @@ addDeclaration d b =
 ----
 ---- Function Accumulator
 ----
+---- TODO should it be "statements accumulator" instead?
 
 
 type alias FunAcc =
     { blockAccumulator : BlockAccumulator
     , statements : List GLSL.Statement
+    , argTypeByName : Dict GLSL.Name GLSL.Type
     }
 
 
@@ -186,6 +188,7 @@ initFunctionAccumulator : BlockAccumulator -> FunAcc
 initFunctionAccumulator blockAccumulator =
     { blockAccumulator = blockAccumulator
     , statements = []
+    , argTypeByName = Dict.empty
     }
 
 
@@ -300,7 +303,11 @@ translateExpression functionArgs ( expr_, elmType ) accum =
                 Just argElmType ->
                     accum
                         |> translateType argElmType
-                        |> andThen (\glslType -> translateExpression (( glslType, argument ) :: functionArgs) body)
+                        |> andThen
+                            (\glslType acc ->
+                                { acc | argTypeByName = Dict.insert argument glslType acc.argTypeByName }
+                                    |> translateExpression (( glslType, argument ) :: functionArgs) body
+                            )
 
         Elm.If elmArgs ->
             case uncurryType elmType of
@@ -321,8 +328,8 @@ translateExpression functionArgs ( expr_, elmType ) accum =
                                     |> addStatement
                                         (GLSL.If
                                             { test = test.expr
-                                            , then_ = GLSL.Assign autoVarName then_.expr
-                                            , else_ = Just <| GLSL.Assign autoVarName else_.expr
+                                            , then_ = [ GLSL.Assign autoVarName then_.expr ]
+                                            , else_ = [ GLSL.Assign autoVarName else_.expr ]
                                             }
                                         )
                                 )
@@ -330,6 +337,20 @@ translateExpression functionArgs ( expr_, elmType ) accum =
 
                 functionType ->
                     Debug.todo "I don't know what to do in this case"
+
+        Elm.Argument varName ->
+            case Dict.get varName accum.argTypeByName of
+                Nothing ->
+                    Debug.todo "this is not supposed to happen 24543"
+
+                Just glslType ->
+                    -- TODO probably need to run some magic for attributes/veryings/uniforms
+                    ( { args = functionArgs
+                      , expr = GLSL.Argument varName
+                      , type_ = glslType
+                      }
+                    , accum
+                    )
 
         _ ->
             Debug.todo (Debug.toString expr_)

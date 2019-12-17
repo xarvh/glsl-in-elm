@@ -53,8 +53,8 @@ type Statement
     | ForLoop {}
     | If
         { test : Expr
-        , then_ : Statement
-        , else_ : Maybe Statement
+        , then_ : List Statement
+        , else_ : List Statement
         }
     | Return Expr
 
@@ -63,6 +63,7 @@ type Expr
     = LiteralInt Int
     | LiteralFloat Float
     | LiteralBool Bool
+    | Argument Name
     | Variable Name
     | Unary Unary Expr
     | Infix Infix Expr Expr
@@ -92,8 +93,11 @@ type Precision
 
 
 addIndent : String -> String
-addIndent =
-    (++) "  "
+addIndent s =
+    s
+        |> String.split "\n"
+        |> List.map ((++) "  ")
+        |> String.join "\n"
 
 
 declarationToString : Declaration -> String
@@ -160,7 +164,38 @@ typeAndNameToString ( type_, name ) =
 
 expressionToString : Expr -> String
 expressionToString expr =
-    "EXPR"
+    case expr of
+        LiteralInt n ->
+            String.fromInt n
+
+        LiteralFloat n ->
+            if floor n == ceiling n then
+                String.fromFloat n ++ ".0"
+
+            else
+                String.fromFloat n
+
+        LiteralBool b ->
+            if b then
+                "true"
+
+            else
+                "false"
+
+        Argument name ->
+            name
+
+        Variable name ->
+            name
+
+        Unary unary a ->
+            Debug.todo "Unary Op"
+
+        Infix infix a b ->
+            Debug.todo "Infix Op"
+
+        FunctionCall name args ->
+            Debug.todo "FCall"
 
 
 statementToString : Statement -> String
@@ -176,7 +211,17 @@ statementToString s =
             Debug.todo "NI"
 
         If { test, then_, else_ } ->
-            Debug.todo "if"
+            [ "if (" ++ expressionToString test ++ ") {\n"
+            , then_
+                |> List.map (statementToString >> addIndent)
+                |> String.join "\n"
+            , "\n} else {\n"
+            , else_
+                |> List.map (statementToString >> addIndent)
+                |> String.join "\n"
+            , "\n}\n"
+            ]
+                |> String.join ""
 
         Return expr ->
             "return " ++ expressionToString expr ++ ";"
