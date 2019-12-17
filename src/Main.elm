@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import Browser
 import ElmToGLSL
+import GLSL.AST
 import Html exposing (..)
 import Html.Attributes exposing (class, classList)
 import Html.Events
@@ -13,29 +14,33 @@ view model =
         []
         [ div
             [ class "flex-row" ]
---             [ textarea
---                 [ Html.Events.onInput OnInput ]
---                 [ text model ]
---             [ case ElmToGLSL.translateExpression ElmToGLSL.testElmAst of
---                 Err blah ->
---                     div
---                         []
---                         [ text blah ]
--- 
---                 Ok stuff ->
---                     div
---                         []
---                         [ text (Debug.toString stuff) ]
---             ]
-            [   ElmToGLSL.initFunctionAccumulator ElmToGLSL.initBlockAccumulator
-                  |> ElmToGLSL.translateExpression [] ElmToGLSL.testExpression
-                  |> Debug.toString
-                  |> text
-                  |> List.singleton
-                  |> div []
+            --             [ textarea
+            --                 [ Html.Events.onInput OnInput ]
+            --                 [ text model ]
+            --             [ case ElmToGLSL.translateExpression ElmToGLSL.testElmAst of
+            --                 Err blah ->
+            --                     div
+            --                         []
+            --                         [ text blah ]
+            --
+            --                 Ok stuff ->
+            --                     div
+            --                         []
+            --                         [ text (Debug.toString stuff) ]
+            --             ]
+            [ pre
+                []
+                [ code
+                    []
+                    [ ElmToGLSL.initBlockAccumulator
+                        |> ElmToGLSL.translateDeclaration ElmToGLSL.testDeclaration
+                        |> .declarations
+                        |> List.map GLSL.AST.declarationToString
+                        |> String.join "\n\n"
+                        |> text
+                    ]
+                ]
             ]
-
-
         , node "style" [] [ text css ]
         ]
 

@@ -5,11 +5,15 @@ type alias Name =
     String
 
 
+type alias TypeAndName =
+    ( Type, Name )
+
+
 type alias EmbeddedBlock =
     { maybePrecision : Precision
-    , attributes : List ( Type, Name )
-    , uniforms : List ( Type, Name )
-    , varyings : List ( Type, Name )
+    , attributes : List TypeAndName
+    , uniforms : List TypeAndName
+    , varyings : List TypeAndName
     , mainDeclaration : DeclarationBody
     , otherDeclarations : List Declaration
     }
@@ -27,8 +31,8 @@ type DeclarationBody
         { maybeInit : Maybe Expr
         }
     | DeclarationFunction
-        { args : List ( Type, Name )
-        , body : List Statement
+        { args : List TypeAndName
+        , statements : List Statement
         }
 
 
@@ -80,3 +84,58 @@ type Infix
 
 type Precision
     = Precision
+
+
+
+----
+---- To String
+----
+
+
+declarationToString : Declaration -> String
+declarationToString decl =
+    [ typeToString decl.type_
+    , " "
+    , decl.name
+    , case decl.body of
+        DeclarationVariable { maybeInit } ->
+            (maybeInit
+                |> Maybe.map expressionToString
+                |> Maybe.withDefault ""
+            )
+                ++ ";"
+
+        DeclarationFunction { args, statements } ->
+            [ "("
+            , args
+                |> List.map typeAndNameToString
+                |> String.join ", "
+            , ") {\n"
+            , statements
+                |> List.map statementToString
+                |> String.join "\n"
+            , "}\n\n"
+            ]
+                |> String.join ""
+    ]
+        |> String.join ""
+
+
+typeToString : Type -> String
+typeToString type_ =
+    "TYPE"
+
+
+expressionToString : Expr -> String
+expressionToString expr =
+    "EXPR"
+
+
+typeAndNameToString : TypeAndName -> String
+typeAndNameToString ( type_, name ) =
+    typeToString type_ ++ " " ++ name
+
+
+statementToString : Statement -> String
+statementToString s =
+    "STATEMENT\n"

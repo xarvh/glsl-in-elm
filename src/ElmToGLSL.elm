@@ -79,6 +79,14 @@ testExpression =
     )
 
 
+testDeclaration : Elm.Data.Declaration.Declaration Elm.Expr
+testDeclaration =
+    { module_ = "TheModule"
+    , name = "zeFunction"
+    , body = Elm.Data.Declaration.Value testExpression
+    }
+
+
 testElmAst : Elm.Data.Module.Module Elm.Expr
 testElmAst =
     { name = "SomeShaderModule"
@@ -125,7 +133,7 @@ testElmAst =
 
 
 type alias BlockAccumulator =
-    { functions : List GLSL.Declaration
+    { declarations : List GLSL.Declaration
 
     -- TODO struct declarations
     , nextAutoName : Int
@@ -134,7 +142,7 @@ type alias BlockAccumulator =
 
 initBlockAccumulator : BlockAccumulator
 initBlockAccumulator =
-    { functions = []
+    { declarations = []
     , nextAutoName = 0
     }
 
@@ -155,6 +163,11 @@ newAutoName { isFunction } block =
     ( { block | nextAutoName = block.nextAutoName + 1 }
     , name
     )
+
+
+addDeclaration : GLSL.Declaration -> BlockAccumulator -> BlockAccumulator
+addDeclaration d b =
+    { b | declarations = d :: b.declarations }
 
 
 
@@ -268,13 +281,7 @@ translateType elmType state =
 --
 
 
-type alias GlslArg =
-    { type_ : GLSL.Type
-    , name : GLSL.Name
-    }
-
-
-translateExpression : List GlslArg -> Elm.Expr -> FunAcc -> ( { args : List GlslArg, expr : GLSL.Expr, type_ : GLSL.Type }, FunAcc )
+translateExpression : List GLSL.TypeAndName -> Elm.Expr -> FunAcc -> ( { args : List GLSL.TypeAndName, expr : GLSL.Expr, type_ : GLSL.Type }, FunAcc )
 translateExpression functionArgs ( expr_, elmType ) accum =
     case expr_ of
         Elm.Int n ->
@@ -293,7 +300,7 @@ translateExpression functionArgs ( expr_, elmType ) accum =
                 Just argElmType ->
                     accum
                         |> translateType argElmType
-                        |> andThen (\glslType -> translateExpression (GlslArg glslType argument :: functionArgs) body)
+                        |> andThen (\glslType -> translateExpression (( glslType, argument ) :: functionArgs) body)
 
         Elm.If elmArgs ->
             case uncurryType elmType of
@@ -329,21 +336,32 @@ translateExpression functionArgs ( expr_, elmType ) accum =
 
 
 translateDeclaration : Elm.Data.Declaration.Declaration Elm.Expr -> BlockAccumulator -> BlockAccumulator
-translateDeclaration elmDeclaration =
+translateDeclaration elmDeclaration oldBlockAccum =
     case elmDeclaration.body of
         Elm.Data.Declaration.Value elmExpr ->
             let
-                -- TODO is it correct to use initBlockAccumulator?
-                ( { args, expr, type_ }, scope ) =
-                    translateExpression [] elmExpr (initFunctionAccumulator initBlockAccumulator)
+                ( { args, expr, type_ }, functionAccumulator ) =
+                    translateExpression [] elmExpr (initFunctionAccumulator oldBlockAccum)
 
-                mainDeclaration =
+                targetDeclaration =
                     { type_ = type_
                     , name = elmDeclaration.name
-                    , body = expr
+                    , body =
+                        if args == [] then
+                            GLSL.DeclarationVariable { maybeInit = Just expr }
+
+                        else
+                            GLSL.DeclarationFunction
+                                { args = List.reverse args
+                                , statements =
+                                    functionAccumulator.statements
+                                        |> (::) (GLSL.Return expr)
+                                        |> List.reverse
+                                }
                     }
             in
-            Debug.todo ""
+            functionAccumulator.blockAccumulator
+                |> addDeclaration targetDeclaration
 
         _ ->
-            Debug.todo "ni"
+            Debug.todo "not implemented"
