@@ -7,7 +7,7 @@ import Elm.AST.Typed.Unwrapped
 import Elm.Compiler
 import Elm.Compiler.Error exposing (Error)
 import Elm.Data.Module as Module exposing (Module)
-import ElmToGLSL
+import Translate
 import GLSL.AST
 import Html exposing (..)
 import Html.Attributes exposing (class, classList)
@@ -46,7 +46,7 @@ view model =
 
         blockAccumulator =
             --ElmToGLSL.initBlockAccumulator
-            List.foldl ElmToGLSL.translateDeclaration ElmToGLSL.initBlockAccumulator elmDeclarations
+            List.foldl Translate.translateDeclaration Translate.initProgramAccumulator elmDeclarations
     in
     div
         []

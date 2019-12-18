@@ -1,4 +1,4 @@
-module ElmToGLSL exposing (..)
+module Translate exposing (..)
 
 import Dict exposing (Dict)
 import Elm.AST.Typed.Unwrapped as Elm
@@ -128,27 +128,27 @@ testElmAst =
 
 
 ----
----- Block Accumulator
+---- Program Accumulator
 ----
 
 
-type alias BlockAccumulator =
+type alias ProgramAcc =
     { declarations : List GLSL.Declaration
+    , nextAutoName : Int
 
     -- TODO struct declarations
-    , nextAutoName : Int
     }
 
 
-initBlockAccumulator : BlockAccumulator
-initBlockAccumulator =
+initProgramAccumulator : ProgramAcc
+initProgramAccumulator =
     { declarations = []
     , nextAutoName = 0
     }
 
 
-newAutoName : { isFunction : Bool } -> BlockAccumulator -> ( BlockAccumulator, GLSL.Name )
-newAutoName { isFunction } block =
+newAutoName : { isFunction : Bool } -> ProgramAcc -> ( ProgramAcc, GLSL.Name )
+newAutoName { isFunction } parentProgAccu =
     let
         prefix =
             if isFunction then
@@ -158,14 +158,14 @@ newAutoName { isFunction } block =
                 "V"
 
         name =
-            prefix ++ String.fromInt block.nextAutoName
+            prefix ++ String.fromInt parentProgAccu.nextAutoName
     in
-    ( { block | nextAutoName = block.nextAutoName + 1 }
+    ( { parentProgAccu | nextAutoName = parentProgAccu.nextAutoName + 1 }
     , name
     )
 
 
-addDeclaration : GLSL.Declaration -> BlockAccumulator -> BlockAccumulator
+addDeclaration : GLSL.Declaration -> ProgramAcc -> ProgramAcc
 addDeclaration d b =
     { b | declarations = d :: b.declarations }
 
@@ -174,19 +174,25 @@ addDeclaration d b =
 ----
 ---- Function Accumulator
 ----
----- TODO should it be "statements accumulator" instead?
 
 
 type alias FunAcc =
-    { blockAccumulator : BlockAccumulator
-    , statements : List GLSL.Statement
+    { parentProgAccu : ProgramAcc
     , argTypeByName : Dict GLSL.Name GLSL.Type
+    , statements : List GLSL.Statement
     }
 
 
-initFunctionAccumulator : BlockAccumulator -> FunAcc
-initFunctionAccumulator blockAccumulator =
-    { blockAccumulator = blockAccumulator
+type alias CurliesAcc =
+    { parentFunctionAcc : FunAcc
+    , statements : List GLSL.Statement
+    }
+
+
+
+initFunctionAccumulator : ProgramAcc -> FunAcc
+initFunctionAccumulator parentProgAccu =
+    { parentProgAccu = parentProgAccu
     , statements = []
     , argTypeByName = Dict.empty
     }
@@ -200,8 +206,8 @@ addStatement statement accum =
 addAutoVariable : GLSL.Type -> FunAcc -> ( GLSL.Name, FunAcc )
 addAutoVariable type_ fa =
     let
-        ( block, name ) =
-            newAutoName { isFunction = False } fa.blockAccumulator
+        ( parentProgAccu, name ) =
+            newAutoName { isFunction = False } fa.parentProgAccu
 
         statement =
             GLSL.StatementDeclaration
@@ -212,7 +218,7 @@ addAutoVariable type_ fa =
     in
     ( name
     , { fa
-        | blockAccumulator = block
+        | parentProgAccu = parentProgAccu
         , statements = statement :: fa.statements
       }
     )
@@ -336,6 +342,7 @@ translateExpression functionArgs ( expr_, elmType ) accum =
                             )
 
                 functionType ->
+                    -- TODO use a closure?
                     Debug.todo "I don't know what to do in this case"
 
         Elm.Argument varName ->
@@ -356,13 +363,13 @@ translateExpression functionArgs ( expr_, elmType ) accum =
             Debug.todo (Debug.toString expr_)
 
 
-translateDeclaration : Elm.Data.Declaration.Declaration Elm.Expr -> BlockAccumulator -> BlockAccumulator
-translateDeclaration elmDeclaration oldBlockAccum =
+translateDeclaration : Elm.Data.Declaration.Declaration Elm.Expr -> ProgramAcc -> ProgramAcc
+translateDeclaration elmDeclaration oldProgAccu =
     case elmDeclaration.body of
         Elm.Data.Declaration.Value elmExpr ->
             let
                 ( { args, expr, type_ }, functionAccumulator ) =
-                    translateExpression [] elmExpr (initFunctionAccumulator oldBlockAccum)
+                    translateExpression [] elmExpr (initFunctionAccumulator oldProgAccu)
 
                 targetDeclaration =
                     { type_ = type_
@@ -381,7 +388,7 @@ translateDeclaration elmDeclaration oldBlockAccum =
                                 }
                     }
             in
-            functionAccumulator.blockAccumulator
+            functionAccumulator.parentProgAccu
                 |> addDeclaration targetDeclaration
 
         _ ->
