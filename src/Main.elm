@@ -19,7 +19,7 @@ init =
 
 meh = \\a b -> 3
 
-someFunction = \\someBool -> if someBool then 1 else if someBool then 5 else 6
+someFunction = \\someBool -> if someBool then 1 else if someBool then 5 else meh 5 6
   """
 
 

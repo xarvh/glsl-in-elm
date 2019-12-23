@@ -182,9 +182,24 @@ map f ( a, accum ) =
     ( f a, accum )
 
 
+map2 : (a -> b -> c) -> TransM ( a, b ) -> TransM c
+map2 f ( ( a, b ), accum ) =
+    ( f a b, accum )
+
+
 map5 : (a -> b -> c -> d -> e -> f) -> TransM ( ( ( ( a, b ), c ), d ), e ) -> TransM f
 map5 f ( ( ( ( ( a, b ), c ), d ), e ), accum ) =
     ( f a b c d e, accum )
+
+
+compose : (a -> TranslateExpressionState -> TransM b) -> List a -> TranslateExpressionState -> TransM (List b)
+compose f ls state =
+    let
+        fold a ( bs, s ) =
+            f a s
+                |> Tuple.mapFirst (\b -> b :: bs)
+    in
+    List.foldr fold ( [], state ) ls
 
 
 
@@ -198,6 +213,7 @@ type alias TranslateExpressionState =
     , auxVar : Dict GLSL.Name GLSL.Type
     , args : List ( GLSL.Type, GLSL.Name )
     , autoStructs : Dict GLSL.Name (List GLSL.Type)
+    , calledFunctions : List SymbolReference
     }
 
 
@@ -208,7 +224,7 @@ type alias TranslateExpressionOut =
     }
 
 
-addAutoVariable : GLSL.Type -> TranslateExpressionState -> ( GLSL.Name, TranslateExpressionState )
+addAutoVariable : GLSL.Type -> TranslateExpressionState -> TransM GLSL.Name
 addAutoVariable type_ state =
     let
         name =
@@ -222,7 +238,7 @@ addAutoVariable type_ state =
     )
 
 
-addAutoStruct : List GLSL.Type -> TranslateExpressionState -> ( GLSL.Name, TranslateExpressionState )
+addAutoStruct : List GLSL.Type -> TranslateExpressionState -> TransM GLSL.Name
 addAutoStruct types state =
     -- TODO faster pre-existing struct lookup
     -- TODO types should be non-ordered? --> sort types!
@@ -243,7 +259,7 @@ addAutoStruct types state =
             )
 
 
-translateExpression : Elm.Expr -> TranslateExpressionState -> ( TranslateExpressionOut, TranslateExpressionState )
+translateExpression : Elm.Expr -> TranslateExpressionState -> TransM TranslateExpressionOut
 translateExpression ( expr_, elmType ) acc =
     case expr_ of
         Elm.Int n ->
@@ -253,6 +269,27 @@ translateExpression ( expr_, elmType ) acc =
               }
             , acc
             )
+
+        Elm.Call { fn, argument } ->
+            case maybeDirectCallName ( expr_, elmType ) of
+                Just ( elmSymbolReference, elmArgs ) ->
+                    -- simple function call
+                    acc
+                        |> translateSymbolReference elmSymbolReference
+                        |> chain (compose translateExpression elmArgs)
+                        |> map2
+                            (\glslFunName glslArgs ->
+                                { expr = GLSL.FunctionCall glslFunName (List.map .expr glslArgs)
+
+                                -- TODO actually put a value or dump the whole type_ attribute
+                                , type_ = GLSL.Int
+                                , auxStatements = List.concatMap .auxStatements glslArgs
+                                }
+                            )
+
+                Nothing ->
+                    -- closure
+                    Debug.todo "closures are not implemented"
 
         Elm.Lambda { argument, body } ->
             case elmType |> uncurryType |> List.head of
@@ -312,6 +349,35 @@ translateExpression ( expr_, elmType ) acc =
 
         _ ->
             Debug.todo (Debug.toString expr_)
+
+
+type alias SymbolReference =
+    { module_ : String, name : String }
+
+
+maybeDirectCallName : Elm.Expr -> Maybe ( SymbolReference, List Elm.Expr )
+maybeDirectCallName ( expr_, elmType ) =
+    case expr_ of
+        Elm.Var symbolReference ->
+            Just ( symbolReference, [] )
+
+        Elm.Call { fn, argument } ->
+            maybeDirectCallName fn |> Maybe.map (Tuple.mapSecond <| (::) argument)
+
+        _ ->
+            Nothing
+
+
+translateSymbolReference : SymbolReference -> TranslateExpressionState -> TransM String
+translateSymbolReference symbolReference state =
+    ( symbolReferenceToGlslName symbolReference
+    , { state | calledFunctions = symbolReference :: state.calledFunctions }
+    )
+
+
+symbolReferenceToGlslName : SymbolReference -> GLSL.Name
+symbolReferenceToGlslName ref =
+    String.replace "." "_" ref.module_ ++ "_" ++ ref.name
 
 
 
@@ -375,6 +441,7 @@ translateType elmType parentTypes state =
 type alias TranslateDeclarationState =
     { nextAutoName : Int
     , declarations : List GLSL.Declaration
+    , calledFunctions : List SymbolReference
     }
 
 
@@ -382,6 +449,7 @@ translateDeclarationInit : TranslateDeclarationState
 translateDeclarationInit =
     { nextAutoName = 0
     , declarations = []
+    , calledFunctions = []
     }
 
 
@@ -396,6 +464,7 @@ translateDeclaration elmDeclaration state =
                         , auxVar = Dict.empty
                         , args = []
                         , autoStructs = Dict.empty
+                        , calledFunctions = state.calledFunctions
                         }
 
                 varDeclarations =
@@ -429,6 +498,7 @@ translateDeclaration elmDeclaration state =
             { state
                 | nextAutoName = nextAutoName
                 , declarations = targetDeclaration :: state.declarations
+                , calledFunctions = state.calledFunctions
             }
 
         _ ->

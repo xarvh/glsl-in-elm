@@ -36,6 +36,9 @@ type DeclarationBody
         { args : List TypeAndName
         , statements : List Statement
         }
+
+
+
 --     | DeclarationStruct (Dict Name Type)
 
 
@@ -202,7 +205,7 @@ expressionToString expr =
             Debug.todo "Infix Op"
 
         FunctionCall name args ->
-            Debug.todo "FCall"
+            name ++ "(" ++ String.join ", " (List.map expressionToString args) ++ ")"
 
 
 statementToString : Statement -> String
