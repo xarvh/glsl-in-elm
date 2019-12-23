@@ -353,11 +353,17 @@ translateType elmType parentTypes state =
                 |> andThen3 (\glslA glslB glslC -> addAutoStruct [ glslA, glslB, glslC ])
                 |> map (\name -> GLSL.Struct { name = name })
 
+        Type.Var _ ->
+            -- This can happen if a variable or argument is not really used, so we should be able to set it to whatever
+            ( GLSL.Int
+            , state
+            )
+
         Type.UserDefinedType { module_, name } args ->
             Debug.todo "not implemented"
 
         _ ->
-            Debug.todo "type cannot be used in GLSL"
+            Debug.todo <| "type " ++ Debug.toString elmType ++ " cannot be used in GLSL"
 
 
 
@@ -392,6 +398,19 @@ translateDeclaration elmDeclaration state =
                         , autoStructs = Dict.empty
                         }
 
+                varDeclarations =
+                    auxVar
+                        |> Dict.toList
+                        |> List.sortBy Tuple.first
+                        |> List.map
+                            (\( n, t ) ->
+                                GLSL.StatementDeclaration
+                                    { type_ = t
+                                    , name = n
+                                    , body = GLSL.DeclarationVariable { maybeInit = Nothing }
+                                    }
+                            )
+
                 targetDeclaration =
                     { type_ = type_
                     , name = elmDeclaration.name
@@ -402,7 +421,8 @@ translateDeclaration elmDeclaration state =
                         else
                             GLSL.DeclarationFunction
                                 { args = List.reverse args
-                                , statements = GLSL.Return expr :: auxStatements |> List.reverse
+                                , statements =
+                                    varDeclarations ++ (GLSL.Return expr :: auxStatements |> List.reverse)
                                 }
                     }
             in

@@ -17,6 +17,8 @@ import Html.Events
 init =
   """module Meh exposing (..)
 
+meh = \\a b -> 3
+
 someFunction = \\someBool -> if someBool then 1 else if someBool then 5 else 6
   """
 
