@@ -1,12 +1,14 @@
 module Translate exposing (..)
 
 import Dict exposing (Dict)
+import Dict.Extra
 import Elm.AST.Typed.Unwrapped as Elm
 import Elm.Data.Declaration
 import Elm.Data.Exposing
 import Elm.Data.Module
 import Elm.Data.Type as Type
 import GLSL.AST as GLSL
+import List.Extra
 
 
 uncurryType : Type.Type -> List Type.Type
@@ -128,113 +130,15 @@ testElmAst =
 
 
 ----
----- Program Accumulator
+---- Translation State
 ----
 
 
-type alias ProgramAcc =
-    { declarations : List GLSL.Declaration
-    , nextAutoName : Int
-
-    -- TODO struct declarations
-    }
+type alias TransM payload =
+    ( payload, TranslateExpressionState )
 
 
-initProgramAccumulator : ProgramAcc
-initProgramAccumulator =
-    { declarations = []
-    , nextAutoName = 0
-    }
-
-
-newAutoName : { isFunction : Bool } -> ProgramAcc -> ( ProgramAcc, GLSL.Name )
-newAutoName { isFunction } parentProgAccu =
-    let
-        prefix =
-            if isFunction then
-                "F"
-
-            else
-                "V"
-
-        name =
-            prefix ++ String.fromInt parentProgAccu.nextAutoName
-    in
-    ( { parentProgAccu | nextAutoName = parentProgAccu.nextAutoName + 1 }
-    , name
-    )
-
-
-addDeclaration : GLSL.Declaration -> ProgramAcc -> ProgramAcc
-addDeclaration d b =
-    { b | declarations = d :: b.declarations }
-
-
-
-----
----- Function Accumulator
-----
-
-
-type alias FunAcc =
-    { parentProgAccu : ProgramAcc
-    , argTypeByName : Dict GLSL.Name GLSL.Type
-    , statements : List GLSL.Statement
-    }
-
-
-type alias CurliesAcc =
-    { parentFunctionAcc : FunAcc
-    , statements : List GLSL.Statement
-    }
-
-
-
-initFunctionAccumulator : ProgramAcc -> FunAcc
-initFunctionAccumulator parentProgAccu =
-    { parentProgAccu = parentProgAccu
-    , statements = []
-    , argTypeByName = Dict.empty
-    }
-
-
-addStatement : GLSL.Statement -> FunAcc -> FunAcc
-addStatement statement accum =
-    { accum | statements = statement :: accum.statements }
-
-
-addAutoVariable : GLSL.Type -> FunAcc -> ( GLSL.Name, FunAcc )
-addAutoVariable type_ fa =
-    let
-        ( parentProgAccu, name ) =
-            newAutoName { isFunction = False } fa.parentProgAccu
-
-        statement =
-            GLSL.StatementDeclaration
-                { type_ = type_
-                , name = name
-                , body = GLSL.DeclarationVariable { maybeInit = Nothing }
-                }
-    in
-    ( name
-    , { fa
-        | parentProgAccu = parentProgAccu
-        , statements = statement :: fa.statements
-      }
-    )
-
-
-
-----
----- Tuple
-----
-
-
-type alias FunAccMonad a =
-    ( a, FunAcc )
-
-
-chain : (FunAcc -> FunAccMonad new) -> FunAccMonad old -> FunAccMonad ( old, new )
+chain : (TranslateExpressionState -> TransM new) -> TransM old -> TransM ( old, new )
 chain f ( old, oldAccum ) =
     let
         ( new, newAccum ) =
@@ -243,45 +147,44 @@ chain f ( old, oldAccum ) =
     ( ( old, new ), newAccum )
 
 
-useAndChain : (old -> FunAcc -> FunAccMonad new) -> FunAccMonad old -> FunAccMonad ( old, new )
+useAndChain : (old -> TranslateExpressionState -> TransM new) -> TransM old -> TransM ( old, new )
 useAndChain f ( old, oldAccum ) =
     chain (f old) ( old, oldAccum )
 
 
-andThen : (a -> FunAcc -> FunAccMonad b) -> FunAccMonad a -> FunAccMonad b
+andThen : (a -> TranslateExpressionState -> TransM b) -> TransM a -> TransM b
 andThen f ( a, accum ) =
     f a accum
 
 
-andThen2 : (a -> b -> FunAcc -> FunAccMonad c) -> FunAccMonad ( a, b ) -> FunAccMonad c
+andThen2 : (a -> b -> TranslateExpressionState -> TransM c) -> TransM ( a, b ) -> TransM c
 andThen2 f ( ( a, b ), accum ) =
     f a b accum
 
 
-andThen3 : (a -> b -> c -> FunAcc -> FunAccMonad d) -> FunAccMonad ( ( a, b ), c ) -> FunAccMonad d
+andThen3 : (a -> b -> c -> TranslateExpressionState -> TransM d) -> TransM ( ( a, b ), c ) -> TransM d
 andThen3 f ( ( ( a, b ), c ), accum ) =
     f a b c accum
 
 
-andThen4 : (a -> b -> c -> d -> FunAcc -> FunAccMonad e) -> FunAccMonad ( ( ( a, b ), c ), d ) -> FunAccMonad e
+andThen4 : (a -> b -> c -> d -> TranslateExpressionState -> TransM e) -> TransM ( ( ( a, b ), c ), d ) -> TransM e
 andThen4 f ( ( ( ( a, b ), c ), d ), accum ) =
     f a b c d accum
 
 
-andThen5 : (a -> b -> c -> d -> e -> FunAcc -> FunAccMonad f) -> FunAccMonad ( ( ( ( a, b ), c ), d ), e ) -> FunAccMonad f
+andThen5 : (a -> b -> c -> d -> e -> TranslateExpressionState -> TransM f) -> TransM ( ( ( ( a, b ), c ), d ), e ) -> TransM f
 andThen5 f ( ( ( ( ( a, b ), c ), d ), e ), accum ) =
     f a b c d e accum
 
 
+map : (a -> b) -> TransM a -> TransM b
+map f ( a, accum ) =
+    ( f a, accum )
 
----
---- Translate Type
----
 
-
-translateType : Type.Type -> FunAcc -> ( GLSL.Type, FunAcc )
-translateType elmType state =
-    ( GLSL.Int, state )
+map5 : (a -> b -> c -> d -> e -> f) -> TransM ( ( ( ( a, b ), c ), d ), e ) -> TransM f
+map5 f ( ( ( ( ( a, b ), c ), d ), e ), accum ) =
+    ( f a b c d e, accum )
 
 
 
@@ -290,15 +193,65 @@ translateType elmType state =
 --
 
 
-translateExpression : List GLSL.TypeAndName -> Elm.Expr -> FunAcc -> ( { args : List GLSL.TypeAndName, expr : GLSL.Expr, type_ : GLSL.Type }, FunAcc )
-translateExpression functionArgs ( expr_, elmType ) accum =
+type alias TranslateExpressionState =
+    { nextAutoName : Int
+    , auxVar : Dict GLSL.Name GLSL.Type
+    , args : List ( GLSL.Type, GLSL.Name )
+    , autoStructs : Dict GLSL.Name (List GLSL.Type)
+    }
+
+
+type alias TranslateExpressionOut =
+    { expr : GLSL.Expr
+    , type_ : GLSL.Type
+    , auxStatements : List GLSL.Statement
+    }
+
+
+addAutoVariable : GLSL.Type -> TranslateExpressionState -> ( GLSL.Name, TranslateExpressionState )
+addAutoVariable type_ state =
+    let
+        name =
+            "V" ++ String.fromInt state.nextAutoName
+    in
+    ( name
+    , { state
+        | nextAutoName = state.nextAutoName + 1
+        , auxVar = Dict.insert name type_ state.auxVar
+      }
+    )
+
+
+addAutoStruct : List GLSL.Type -> TranslateExpressionState -> ( GLSL.Name, TranslateExpressionState )
+addAutoStruct types state =
+    -- TODO faster pre-existing struct lookup
+    -- TODO types should be non-ordered? --> sort types!
+    case Dict.Extra.find (\n t -> t == types) state.autoStructs of
+        Just ( n, t ) ->
+            ( n, state )
+
+        Nothing ->
+            let
+                name =
+                    "struct" ++ String.fromInt state.nextAutoName
+            in
+            ( name
+            , { state
+                | nextAutoName = state.nextAutoName + 1
+                , autoStructs = Dict.insert name types state.autoStructs
+              }
+            )
+
+
+translateExpression : Elm.Expr -> TranslateExpressionState -> ( TranslateExpressionOut, TranslateExpressionState )
+translateExpression ( expr_, elmType ) acc =
     case expr_ of
         Elm.Int n ->
-            ( { args = functionArgs
-              , expr = GLSL.LiteralInt n
+            ( { expr = GLSL.LiteralInt n
               , type_ = GLSL.Int
+              , auxStatements = []
               }
-            , accum
+            , acc
             )
 
         Elm.Lambda { argument, body } ->
@@ -307,38 +260,36 @@ translateExpression functionArgs ( expr_, elmType ) accum =
                     Debug.todo "This should not happen?"
 
                 Just argElmType ->
-                    accum
-                        |> translateType argElmType
+                    acc
+                        |> translateType argElmType []
                         |> andThen
-                            (\glslType acc ->
-                                { acc | argTypeByName = Dict.insert argument glslType acc.argTypeByName }
-                                    |> translateExpression (( glslType, argument ) :: functionArgs) body
+                            (\glslType newAcc ->
+                                { newAcc | args = ( glslType, argument ) :: newAcc.args }
+                                    |> translateExpression body
                             )
 
         Elm.If elmArgs ->
             case uncurryType elmType of
                 [ nonFunctionType ] ->
-                    accum
-                        |> translateType nonFunctionType
+                    acc
+                        |> translateType nonFunctionType []
                         |> useAndChain addAutoVariable
-                        |> chain (translateExpression [] elmArgs.test)
-                        |> chain (translateExpression [] elmArgs.then_)
-                        |> chain (translateExpression [] elmArgs.else_)
-                        |> andThen5
-                            (\glslType autoVarName test then_ else_ newAccum ->
-                                ( { args = functionArgs
-                                  , expr = GLSL.Variable autoVarName
-                                  , type_ = glslType
-                                  }
-                                , newAccum
-                                    |> addStatement
-                                        (GLSL.If
-                                            { test = test.expr
-                                            , then_ = [ GLSL.Assign autoVarName then_.expr ]
-                                            , else_ = [ GLSL.Assign autoVarName else_.expr ]
-                                            }
-                                        )
-                                )
+                        |> chain (translateExpression elmArgs.test)
+                        |> chain (translateExpression elmArgs.then_)
+                        |> chain (translateExpression elmArgs.else_)
+                        |> map5
+                            (\glslType autoVarName test then_ else_ ->
+                                { expr = GLSL.Variable autoVarName
+                                , type_ = glslType
+                                , auxStatements =
+                                    GLSL.If
+                                        { test = test.expr
+                                        , then_ = GLSL.Assign autoVarName then_.expr :: then_.auxStatements |> List.reverse
+                                        , else_ = GLSL.Assign autoVarName else_.expr :: else_.auxStatements |> List.reverse
+                                        }
+                                        :: test.auxStatements
+                                        |> List.reverse
+                                }
                             )
 
                 functionType ->
@@ -346,30 +297,100 @@ translateExpression functionArgs ( expr_, elmType ) accum =
                     Debug.todo "I don't know what to do in this case"
 
         Elm.Argument varName ->
-            case Dict.get varName accum.argTypeByName of
+            case List.Extra.find (\( type_, name ) -> name == varName) acc.args of
                 Nothing ->
                     Debug.todo "this is not supposed to happen 24543"
 
-                Just glslType ->
-                    -- TODO probably need to run some magic for attributes/veryings/uniforms
-                    ( { args = functionArgs
-                      , expr = GLSL.Argument varName
+                Just ( glslType, name ) ->
+                    -- TODO probably need to run some magic for attributes/varyings/uniforms
+                    ( { expr = GLSL.Argument varName
                       , type_ = glslType
+                      , auxStatements = []
                       }
-                    , accum
+                    , acc
                     )
 
         _ ->
             Debug.todo (Debug.toString expr_)
 
 
-translateDeclaration : Elm.Data.Declaration.Declaration Elm.Expr -> ProgramAcc -> ProgramAcc
-translateDeclaration elmDeclaration oldProgAccu =
+
+---
+--- Translate Type
+---
+
+
+translateType : Type.Type -> List Type.Type -> TranslateExpressionState -> ( GLSL.Type, TranslateExpressionState )
+translateType elmType parentTypes state =
+    case elmType of
+        Type.Int ->
+            ( GLSL.Int
+            , state
+            )
+
+        Type.Float ->
+            ( GLSL.Float
+            , state
+            )
+
+        Type.Bool ->
+            ( GLSL.Bool
+            , state
+            )
+
+        Type.Tuple elmA elmB ->
+            state
+                |> translateType elmA (elmType :: parentTypes)
+                |> chain (translateType elmB (elmType :: parentTypes))
+                |> andThen2 (\glslA glslB -> addAutoStruct [ glslA, glslB ])
+                |> map (\name -> GLSL.Struct { name = name })
+
+        Type.Tuple3 elmA elmB elmC ->
+            state
+                |> translateType elmA (elmType :: parentTypes)
+                |> chain (translateType elmB (elmType :: parentTypes))
+                |> chain (translateType elmC (elmType :: parentTypes))
+                |> andThen3 (\glslA glslB glslC -> addAutoStruct [ glslA, glslB, glslC ])
+                |> map (\name -> GLSL.Struct { name = name })
+
+        Type.UserDefinedType { module_, name } args ->
+            Debug.todo "not implemented"
+
+        _ ->
+            Debug.todo "type cannot be used in GLSL"
+
+
+
+--
+-- Translate Declaration
+--
+
+
+type alias TranslateDeclarationState =
+    { nextAutoName : Int
+    , declarations : List GLSL.Declaration
+    }
+
+
+translateDeclarationInit : TranslateDeclarationState
+translateDeclarationInit =
+    { nextAutoName = 0
+    , declarations = []
+    }
+
+
+translateDeclaration : Elm.Data.Declaration.Declaration Elm.Expr -> TranslateDeclarationState -> TranslateDeclarationState
+translateDeclaration elmDeclaration state =
     case elmDeclaration.body of
         Elm.Data.Declaration.Value elmExpr ->
             let
-                ( { args, expr, type_ }, functionAccumulator ) =
-                    translateExpression [] elmExpr (initFunctionAccumulator oldProgAccu)
+                ( { expr, type_, auxStatements }, { nextAutoName, auxVar, args } ) =
+                    translateExpression elmExpr
+                        { nextAutoName = state.nextAutoName
+                        , auxVar = Dict.empty
+                        , args = []
+                        , autoStructs = Dict.empty
+                        }
 
                 targetDeclaration =
                     { type_ = type_
@@ -381,15 +402,14 @@ translateDeclaration elmDeclaration oldProgAccu =
                         else
                             GLSL.DeclarationFunction
                                 { args = List.reverse args
-                                , statements =
-                                    functionAccumulator.statements
-                                        |> (::) (GLSL.Return expr)
-                                        |> List.reverse
+                                , statements = GLSL.Return expr :: auxStatements |> List.reverse
                                 }
                     }
             in
-            functionAccumulator.parentProgAccu
-                |> addDeclaration targetDeclaration
+            { state
+                | nextAutoName = nextAutoName
+                , declarations = targetDeclaration :: state.declarations
+            }
 
         _ ->
             Debug.todo "not implemented"

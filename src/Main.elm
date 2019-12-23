@@ -17,7 +17,7 @@ import Html.Events
 init =
   """module Meh exposing (..)
 
-someFunction = \\someBool -> if someBool then 1 else 3
+someFunction = \\someBool -> if someBool then 1 else if someBool then 5 else 6
   """
 
 
@@ -46,7 +46,7 @@ view model =
 
         blockAccumulator =
             --ElmToGLSL.initBlockAccumulator
-            List.foldl Translate.translateDeclaration Translate.initProgramAccumulator elmDeclarations
+            List.foldl Translate.translateDeclaration Translate.translateDeclarationInit elmDeclarations
     in
     div
         []

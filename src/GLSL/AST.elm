@@ -1,5 +1,7 @@
 module GLSL.AST exposing (..)
 
+import Dict exposing (Dict)
+
 
 type alias Name =
     String
@@ -34,6 +36,11 @@ type DeclarationBody
         { args : List TypeAndName
         , statements : List Statement
         }
+--     | DeclarationStruct (Dict Name Type)
+
+
+type alias StructDefinition =
+    Dict Name Type
 
 
 type Type
