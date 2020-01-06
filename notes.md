@@ -1,4 +1,5 @@
-Problems:
+Problems
+========
 
 * When *declaring* a function:
   - Functions cannot be declared within other functions
@@ -6,7 +7,7 @@ Problems:
   => Flatten functions
     - move all functions declarations in the root scope
     - add arguments to the functions to pass all the symbols needed
-    ! because of these new arguments, some functions call will becoe closures
+    ! because of these new arguments, some function calls will become partial applications
 
 
 * When *calling* a function:
@@ -16,35 +17,24 @@ Problems:
 
 
 
-1) Flatten functions
+Flatten functions
+=================
 
+Before:
 ```
-    someFunction =
-        \a ->
-            if a then
-                Maybe.map (\x -> x * x + a) someValue
-
-            else
-                (\y z -> y + 2 + z) 55
+someFunction =
+    \a ->
+      \b ->
+        a + b
 ```
 
-becomes:
-
+After:
 ```
-    someFunction_ =
-        \a ->
-            if a then
-                Maybe.map (f0 a) someValue
+someFunction =
+    \a -> f0 a b
 
-            else
-                f1 55
-
-
-    f0 =
-        \a -> \x -> x * x + a
-
-
-    f1 =
-        \y -> \z -> y + 2 + z
+f0 = \a b ->
+    a + b
 ```
+
 
