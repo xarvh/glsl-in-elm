@@ -20,9 +20,22 @@ import Translate
 init =
     """module Meh exposing (..)
 
-meh = \\a b -> 3
+ooo = 9
 
-someFunction = \\someBool -> if someBool then 1 else if someBool then 5 else meh 5 6
+meh = \\a b -> 3 + ooo
+
+q = \\l -> 2
+
+someFunction =
+    \\someBool ->
+        if someBool then
+            \\f -> 3
+
+        else if someBool then
+            \\x -> ooo
+
+        else
+            meh 5
   """
 
 
@@ -48,8 +61,9 @@ view model =
                 |> Result.withDefault []
 
         blockAccumulator =
-            --ElmToGLSL.initBlockAccumulator
-            List.foldl Translate.translateDeclaration Translate.translateDeclarationInit elmDeclarations
+            Translate.translateDeclarationInit
+
+        --List.foldl Translate.translateDeclaration Translate.translateDeclarationInit elmDeclarations
     in
     div
         []

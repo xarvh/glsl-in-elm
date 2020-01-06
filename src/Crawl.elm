@@ -69,7 +69,7 @@ flattenName : { module_ : String, name : String } -> VarName
 flattenName { module_, name } =
     -- TODO `_` is a valid module name char, so uniqueness is not guaranteed
     -- TODO how are let..in bindings going to be referenced?
-    String.replace "." "_" module_ ++ name
+    String.replace "." "_" module_ ++ "@" ++ name
 
 
 
@@ -110,8 +110,13 @@ crawlWithNewScope expr parentScope =
             Set.diff inherited (getDeclaredByFunction parentScope)
     in
     { parentScope
-        | children = NestedScope childScope :: parentScope.children
-        , referencedVarNames = Set.union additionalForParent parentScope.referencedVarNames
+        | referencedVarNames = Set.union additionalForParent parentScope.referencedVarNames
+        , children =
+            if childScope == initScope then
+                parentScope.children
+
+            else
+                NestedScope childScope :: parentScope.children
     }
 
 
@@ -160,7 +165,7 @@ crawl ( expr_, type_ ) scope =
             scope
                 -- TODO Right now a function with 3 args will be counted 3 times, would be nice to count it only once
                 |> increaseComplexityBy 0.5
-                |> crawl fn
+                |> crawlWithNewScope fn
                 |> crawlWithNewScope argument
 
         If { test, then_, else_ } ->
