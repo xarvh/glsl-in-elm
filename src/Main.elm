@@ -1,28 +1,29 @@
 module Main exposing (..)
 
 import Browser
+import Crawl
 import Dict
 import Elm.AST.Typed as Typed
 import Elm.AST.Typed.Unwrapped
 import Elm.Compiler
 import Elm.Compiler.Error exposing (Error)
+import Elm.Data.Declaration
 import Elm.Data.Module as Module exposing (Module)
-import Translate
 import GLSL.AST
 import Html exposing (..)
-import Html.Attributes exposing (class, classList)
+import Html.Attributes exposing (class, classList, style)
 import Html.Events
+import PrettyPrint
+import Translate
 
 
 init =
-  """module Meh exposing (..)
+    """module Meh exposing (..)
 
 meh = \\a b -> 3
 
 someFunction = \\someBool -> if someBool then 1 else if someBool then 5 else meh 5 6
   """
-
-
 
 
 elmToGlsl : String -> Result Error (Module Elm.AST.Typed.Unwrapped.Expr)
@@ -54,9 +55,25 @@ view model =
         []
         [ div
             [ class "flex-row" ]
-            [ textarea
-                [ Html.Events.onInput OnInput ]
-                [ text model ]
+            [ div
+                []
+                [ textarea
+                    [ Html.Events.onInput OnInput
+                    , style "min-height" "300px"
+                    , style "min-width" "900px"
+                    ]
+                    [ text model ]
+                , pre
+                    []
+                    [ code
+                        []
+                        [ elmDeclarations
+                            |> List.map viewCrawl
+                            |> String.join "\n\n"
+                            |> text
+                        ]
+                    ]
+                ]
             , pre
                 []
                 [ code
@@ -83,6 +100,18 @@ view model =
             ]
         , node "style" [] [ text css ]
         ]
+
+
+viewCrawl declaration =
+    case declaration.body of
+        Elm.Data.Declaration.Value elmExpr ->
+            Crawl.initScope
+                |> Crawl.crawl elmExpr
+                |> Debug.toString
+                |> PrettyPrint.toStringPretty
+
+        _ ->
+            ""
 
 
 viewDeclaration declaration =

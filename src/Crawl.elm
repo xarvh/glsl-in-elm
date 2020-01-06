@@ -110,8 +110,8 @@ crawlWithNewScope expr parentScope =
             Set.diff inherited (getDeclaredByFunction parentScope)
     in
     { parentScope
-        | children = NestedScope childScope :: scope.children
-        , referencedVariables = Set.union parentScope.referencedVariables additionalForParent
+        | children = NestedScope childScope :: parentScope.children
+        , referencedVarNames = Set.union additionalForParent parentScope.referencedVarNames
     }
 
 
@@ -134,7 +134,7 @@ crawl ( expr_, type_ ) scope =
             scope
 
         Var moduleAndName ->
-            { scope | referencedVariables = Set.insert (flattenName moduleAndName) scope.referencedVariables }
+            { scope | referencedVarNames = Set.insert (flattenName moduleAndName) scope.referencedVarNames }
 
         Argument varName ->
             -- TODO do we care to keep track of whether an argument is actually used or not?
@@ -194,8 +194,11 @@ crawl ( expr_, type_ ) scope =
                 |> crawlWithNewScope exprB
                 |> crawlWithNewScope exprC
 
+        Record blah ->
+            Debug.todo "NI"
 
-addBinding : String -> Binding -> FunctionScope -> FunctionScope
+
+addBinding : String -> Binding Expr -> FunctionScope -> FunctionScope
 addBinding name_again { name, body } scope =
     { scope | letInNames = Set.insert name scope.letInNames }
         |> increaseComplexityBy 0.5
