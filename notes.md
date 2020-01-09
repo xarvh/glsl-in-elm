@@ -11,9 +11,75 @@ Problems
 
 
 * When *calling* a function:
-  - The function might be only partially applied => create a struct that holds the applied args?
-  ? What when two closures of the same type must contain args of different type?
-  => If a function returns a closure, add the missing argumets
+  - One of the arguments might be a function itself, possibly partially applied
+  => create a union type to represent a function reference and the partially applied args
+
+
+    - For every function, for every argument, if the argument type contains a function
+        - Ensure that there is a union type dedicated to that function type
+
+    - For every partial function call, if the argument is a function or a closure
+        - Ensure that there is a constructor, for the
+
+
+
+
+
+map : (Int -> Int) -> Monad -> Monad
+map someFunction someMonad =
+  case someMonad of
+    Blah ->
+      Blah
+
+    Meh value ->
+      Meh (someFunction value)
+
+
+
+aFunThatUsesMap =
+  map (zoop 4 2) monadedValue
+
+
+
+
+
+
+
+
+
+
+Call
+  { fn =
+        Call
+          { fn = "zoop"
+          , arg = (4 + 2)
+          }
+  , arg = 2
+  }
+
+
+partial0 =
+  { fn = "zoop"
+  , args = [ 4 ]
+  }
+  -> and add constructor
+
+
+
+partial1 =
+  { fn = "zoop"
+  , args = [4, 2]
+  }
+  -> and addconstructor
+
+
+
+
+
+case expr of
+  Call fn arg ->
+    if fn is closure then
+
 
 
 
