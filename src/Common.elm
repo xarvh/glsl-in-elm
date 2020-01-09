@@ -6,7 +6,8 @@ type Name
 
 
 type Literal
-    = Int Int
+    = Unit
+    | Int Int
     | Float Float
     | Bool Bool
 

@@ -1,21 +1,17 @@
 module Flattened exposing (..)
 
+import Common exposing (Name)
+import Dict exposing (Dict)
+
 
 type alias Expr =
     ( Expr_, Type )
 
 
-type alias VarName =
-    String
-
-
 type Expr_
-    = Int Int
-    | Float Float
-    | Bool Bool
-    | Var VarName
-    | Plus Expr Expr
-    | Cons Expr Expr
+    = Literal Common.Literal
+    | Var Name
+    | Binop Common.Binop Expr Expr
     | Call
         { fn : Expr
         , argument : Expr
@@ -29,6 +25,5 @@ type Expr_
         { bindings : Dict VarName (Binding Expr)
         , body : Expr
         }
-    | Unit
     | Tuple Expr Expr
     | Tuple3 Expr Expr Expr

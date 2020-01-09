@@ -85,18 +85,45 @@ straighten ( expr_, type_ ) =
                 { functionName, arguments, bindings } =
                     uncurryFunction fn (initUncurryFunctionAcc argument)
 
-                q =
-                    if arity type_ < List.length arguments then
-                        createPartialApplication functionName arguments
-
-                    else
-                        createFunctionCall functionName arguments
+                call =
+                    Call
+                        { functionName = functionName
+                        , arguments = arguments
+                        }
             in
-            if bindings /= Dict.empty then
-                wrapWithBindings bindings q
+            if bindings == Dict.empty then
+                call
 
             else
-                q
+                Let
+                    { bindings = bindings
+                    , body = call
+                    }
 
-        _ ->
-            Debug.todo ""
+        Flattened.Literal l ->
+            Literal l
+
+        Flattened.Var n ->
+            Var n
+
+        Flattened.Binop op a b ->
+            Binop op (uncurry a) (uncurry b)
+
+        Flattened.If { test, then_, else_ } ->
+            If
+                { test = uncurry test
+                , then_ = uncurry then_
+                , else_ = uncurry else_
+                }
+
+        Flattened.Let { bindings, body } ->
+            Let
+                { bindings = Dict.map (\k -> uncurry)
+                , body = uncurry body
+                }
+
+        Flattened.Tuple a b ->
+            ( uncurry a, uncurry b )
+
+        Flattened.Tuple3 a b c ->
+            ( uncurry a, uncurry b, uncurry c )
