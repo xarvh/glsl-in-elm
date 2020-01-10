@@ -1,7 +1,7 @@
 module Common exposing (..)
 
 
-type Name
+type alias Name
     = String
 
 

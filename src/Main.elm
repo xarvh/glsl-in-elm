@@ -1,7 +1,9 @@
 module Main exposing (..)
 
+import Flatten
+import Uncurry
 import Browser
-import Crawl
+-- import Crawl
 import Dict
 import Elm.AST.Typed as Typed
 import Elm.AST.Typed.Unwrapped
@@ -13,8 +15,8 @@ import GLSL.AST
 import Html exposing (..)
 import Html.Attributes exposing (class, classList, style)
 import Html.Events
-import PrettyPrint
-import Translate
+-- import PrettyPrint
+-- import Translate
 
 
 init =
@@ -60,8 +62,8 @@ view model =
                 |> Result.map (.declarations >> Dict.values)
                 |> Result.withDefault []
 
-        blockAccumulator =
-            Translate.translateDeclarationInit
+--         blockAccumulator =
+--             Translate.translateDeclarationInit
 
         --List.foldl Translate.translateDeclaration Translate.translateDeclarationInit elmDeclarations
     in
@@ -92,7 +94,7 @@ view model =
                 []
                 [ code
                     []
-                    [ blockAccumulator.declarations
+                    [ [] --blockAccumulator.declarations
                         |> List.map GLSL.AST.declarationToString
                         |> String.join "\n\n"
                         |> text

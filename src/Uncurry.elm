@@ -2,10 +2,11 @@ module Uncurry exposing (..)
 
 import Common exposing (Name)
 import Dict exposing (Dict)
+import Flatten
 
 
 type Type
-    = TypeFunction Type
+    = TypeFunction Type Type
     | TypePartial Type Type
     | TypePrimitive Common.PrimitiveType
     | TypeTuple2 Type Type
@@ -33,12 +34,26 @@ type Expr_
         , then_ : Expr
         , else_ : Expr
         }
-    | Let
+    | LetIn
         { bindings : Dict Name Expr
         , body : Expr
         }
-    | Tuple Expr Expr
+    | Tuple2 Expr Expr
     | Tuple3 Expr Expr Expr
+
+
+
+-- Utility
+
+
+typeArity : Flatten.Type -> Int
+typeArity t =
+    case t of
+        Flatten.TypeFunction arg return ->
+            1 + typeArity return
+
+        _ ->
+            0
 
 
 
@@ -62,28 +77,28 @@ initUncurryFunctionAcc firstArgument =
 
 uncurryFunction : Expr -> UncurryFunctionAcc -> UncurryFunctionAcc
 uncurryFunction ( fnExpr_, type_ ) accum =
-    case expr_ of
-        Flattened.Call { fn, argument } ->
+    case fnExpr_ of
+        Flatten.Call { fn, argument } ->
             { accum | arguments = argument :: accum.arguments }
                 |> uncurryFunction fn
 
-        Flattened.LetIn { bindings, body } ->
+        Flatten.LetIn { bindings, body } ->
             { accum | bindings = Dict.union bindings accum.bindings }
                 |> uncurryFunction body
 
-        Flattened.Var functionName ->
+        Flatten.Var functionName ->
             { accum | functionName = functionName }
                 uncurry
 
         _ ->
-            Debug.todo <| Debug.log "" expr_ ++ " is not callable, this shouldn't happen!!!"
+            Debug.todo <| Debug.log "" fnExpr_ ++ " is not callable, this shouldn't happen!!!"
 
 
 
 -- Uncurry Expr
 
 
-uncurry : Flattened.Expr -> Expr
+uncurry : Flatten.Expr -> Expr
 uncurry ( expr_, type_ ) =
     let
         andType : Expr_ -> Expr
@@ -91,7 +106,7 @@ uncurry ( expr_, type_ ) =
             ( e, uncurryType type_ )
     in
     case expr_ of
-        Flattened.Call { fn, argument } ->
+        Flatten.Call { fn, argument } ->
             let
                 { functionName, arguments, bindings } =
                     uncurryFunction fn (initUncurryFunctionAcc argument)
@@ -118,24 +133,24 @@ uncurry ( expr_, type_ ) =
                 call
 
             else
-                Let
+                LetIn
                     { bindings = bindings
                     , body = call
                     }
 
-        Flattened.Literal l ->
+        Flatten.Literal l ->
             Literal l
                 |> andType
 
-        Flattened.Var n ->
+        Flatten.Var n ->
             Var n
                 |> andType
 
-        Flattened.Binop op a b ->
+        Flatten.Binop op a b ->
             Binop op (uncurry a) (uncurry b)
                 |> andType
 
-        Flattened.If { test, then_, else_ } ->
+        Flatten.If { test, then_, else_ } ->
             If
                 { test = uncurry test
                 , then_ = uncurry then_
@@ -143,26 +158,26 @@ uncurry ( expr_, type_ ) =
                 }
                 |> andType
 
-        Flattened.Let { bindings, body } ->
-            Let
+        Flatten.LetIn { bindings, body } ->
+            LetIn
                 { bindings = Dict.map (\bindingName bindingExpr -> uncurry bindingExpr) bindings
                 , body = uncurry body
                 }
                 |> andType
 
-        Flattened.Tuple a b ->
+        Flatten.Tuple2 a b ->
             Tuple2 (uncurry a) (uncurry b)
                 |> andType
 
-        Flattened.Tuple3 a b c ->
+        Flatten.Tuple3 a b c ->
             Tuple3 (uncurry a) (uncurry b) (uncurry c)
                 |> andType
 
 
-toPartialType : Flattened.Type -> Flattened.Type -> Type
+toPartialType : Flatten.Type -> Flatten.Type -> Type
 toPartialType previousArgumentType currentType =
     case currentType of
-        Flattened.TypeFunction inType outType ->
+        Flatten.TypeFunction inType outType ->
             TypeFunction (uncurryType inType) (toPartialType currentType outType)
 
         _ ->
@@ -173,29 +188,29 @@ toPartialType previousArgumentType currentType =
 -- Uncurry Type
 
 
-uncurryType : Flattened.Type -> Type
+uncurryType : Flatten.Type -> Type
 uncurryType type_ =
     case type_ of
-        Flattened.TypeFunction from to ->
+        Flatten.TypeFunction from to ->
             [ from ]
                 |> uncurryFunctionType to
                 |> List.reverse
                 |> TypeFunction
 
-        Flattened.TypePrimitive p ->
+        Flatten.TypePrimitive p ->
             TypePrimitive p
 
-        Flattened.TypeTuple2 a b ->
+        Flatten.TypeTuple2 a b ->
             TypeTuple2 (uncurryType a) (uncurryType b)
 
-        Flattened.TypeTuple3 a b c ->
+        Flatten.TypeTuple3 a b c ->
             TypeTuple3 (uncurryType a) (uncurryType b) (uncurryType c)
 
 
-uncurryFunctionType : Flattened.Type -> List Type -> List Type
+uncurryFunctionType : Flatten.Type -> List Type -> List Type
 uncurryFunctionType t ts =
     case t of
-        Flattened.TypeFunction arg out ->
+        Flatten.TypeFunction arg out ->
             uncurryFunctionType out (arg :: ts)
 
         _ ->
@@ -204,6 +219,16 @@ uncurryFunctionType t ts =
 
 
 -- Create types
+
+
+functionTypeToList : Type -> List Type -> ( List Type, Type )
+functionTypeToList t ts =
+    case t of
+        TypeFunction arg return ->
+            functionTypeToList (arg :: ts) return
+
+        _ ->
+            ( ts, t )
 
 
 extractConstructors : Expr -> List ( Name, Type ) -> List ( Name, Type )
@@ -222,15 +247,16 @@ extractConstructors ( expr_, type_ ) cs =
 
         If { test, then_, else_ } ->
             cs
-                |> extractConstructors a
-                |> extractConstructors b
+                |> extractConstructors test
+                |> extractConstructors then_
+                |> extractConstructors else_
 
-        Let { bindings, body } ->
+        LetIn { bindings, body } ->
             bindings
                 |> Dict.values
                 |> List.foldl extractConstructors (extractConstructors body cs)
 
-        Tuple a b ->
+        Tuple2 a b ->
             cs
                 |> extractConstructors a
                 |> extractConstructors b
