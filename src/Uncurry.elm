@@ -5,13 +5,11 @@ import Dict exposing (Dict)
 
 
 type Type
-    = Var Int
-    | Function (List Type)
-    | Int
-    | Float
-    | Bool
-    | Tuple Type Type
-    | Tuple3 Type Type Type
+    = TypeFunction Type
+    | TypePartial Type Type
+    | TypePrimitive Common.PrimitiveType
+    | TypeTuple2 Type Type
+    | TypeTuple3 Type Type Type
 
 
 type alias Expr =
@@ -22,9 +20,13 @@ type Expr_
     = Literal Common.Literal
     | Var Name
     | Binop Common.Binop Expr Expr
-    | Call
-        { fn : Name
+    | CallTotal
+        { functionName : Name
         , arguments : List Expr
+        }
+    | CallPartial
+        { functionName : Name
+        , partialArguments : List Expr
         }
     | If
         { test : Expr
@@ -67,29 +69,50 @@ uncurryFunction ( fnExpr_, type_ ) accum =
 
         Flattened.LetIn { bindings, body } ->
             { accum | bindings = Dict.union bindings accum.bindings }
-                |> straightenFunction body
+                |> uncurryFunction body
 
         Flattened.Var functionName ->
             { accum | functionName = functionName }
-                straighten
+                uncurry
 
         _ ->
             Debug.todo <| Debug.log "" expr_ ++ " is not callable, this shouldn't happen!!!"
 
 
-straighten : Flattened.Expr -> Expr
-straighten ( expr_, type_ ) =
+
+-- Uncurry Expr
+
+
+uncurry : Flattened.Expr -> Expr
+uncurry ( expr_, type_ ) =
+    let
+        andType : Expr_ -> Expr
+        andType e =
+            ( e, uncurryType type_ )
+    in
     case expr_ of
         Flattened.Call { fn, argument } ->
             let
                 { functionName, arguments, bindings } =
                     uncurryFunction fn (initUncurryFunctionAcc argument)
 
-                call =
-                    Call
-                        { functionName = functionName
-                        , arguments = arguments
-                        }
+                ( call, callType ) =
+                    if typeArity type_ == List.length arguments then
+                        ( CallTotal
+                            { functionName = functionName
+                            , arguments = List.reverse arguments
+                            }
+                        , uncurryType type_
+                        )
+
+                    else
+                        ( CallPartial
+                            { functionName = functionName
+                            , partialArguments = List.reverse arguments
+                            }
+                          --The first "previous type" will be discarded anyway
+                        , toPartialType (TypePrimitive Common.TypeUnit) type_
+                        )
             in
             if bindings == Dict.empty then
                 call
@@ -102,12 +125,15 @@ straighten ( expr_, type_ ) =
 
         Flattened.Literal l ->
             Literal l
+                |> andType
 
         Flattened.Var n ->
             Var n
+                |> andType
 
         Flattened.Binop op a b ->
             Binop op (uncurry a) (uncurry b)
+                |> andType
 
         Flattened.If { test, then_, else_ } ->
             If
@@ -115,15 +141,102 @@ straighten ( expr_, type_ ) =
                 , then_ = uncurry then_
                 , else_ = uncurry else_
                 }
+                |> andType
 
         Flattened.Let { bindings, body } ->
             Let
-                { bindings = Dict.map (\k -> uncurry)
+                { bindings = Dict.map (\bindingName bindingExpr -> uncurry bindingExpr) bindings
                 , body = uncurry body
                 }
+                |> andType
 
         Flattened.Tuple a b ->
-            ( uncurry a, uncurry b )
+            Tuple2 (uncurry a) (uncurry b)
+                |> andType
 
         Flattened.Tuple3 a b c ->
-            ( uncurry a, uncurry b, uncurry c )
+            Tuple3 (uncurry a) (uncurry b) (uncurry c)
+                |> andType
+
+
+toPartialType : Flattened.Type -> Flattened.Type -> Type
+toPartialType previousArgumentType currentType =
+    case currentType of
+        Flattened.TypeFunction inType outType ->
+            TypeFunction (uncurryType inType) (toPartialType currentType outType)
+
+        _ ->
+            TypePartial (uncurryType previousArgumentType) (uncurryType currentType)
+
+
+
+-- Uncurry Type
+
+
+uncurryType : Flattened.Type -> Type
+uncurryType type_ =
+    case type_ of
+        Flattened.TypeFunction from to ->
+            [ from ]
+                |> uncurryFunctionType to
+                |> List.reverse
+                |> TypeFunction
+
+        Flattened.TypePrimitive p ->
+            TypePrimitive p
+
+        Flattened.TypeTuple2 a b ->
+            TypeTuple2 (uncurryType a) (uncurryType b)
+
+        Flattened.TypeTuple3 a b c ->
+            TypeTuple3 (uncurryType a) (uncurryType b) (uncurryType c)
+
+
+uncurryFunctionType : Flattened.Type -> List Type -> List Type
+uncurryFunctionType t ts =
+    case t of
+        Flattened.TypeFunction arg out ->
+            uncurryFunctionType out (arg :: ts)
+
+        _ ->
+            uncurryType t :: ts
+
+
+
+-- Create types
+
+
+extractConstructors : Expr -> List ( Name, Type ) -> List ( Name, Type )
+extractConstructors ( expr_, type_ ) cs =
+    case expr_ of
+        Binop _ a b ->
+            cs
+                |> extractConstructors a
+                |> extractConstructors b
+
+        CallTotal { fn, arguments } ->
+            List.foldl extractConstructors cs arguments
+
+        CallPartial { functionName, partialArguments } ->
+            ( functionName, type_ ) :: cs
+
+        If { test, then_, else_ } ->
+            cs
+                |> extractConstructors a
+                |> extractConstructors b
+
+        Let { bindings, body } ->
+            bindings
+                |> Dict.values
+                |> List.foldl extractConstructors (extractConstructors body cs)
+
+        Tuple a b ->
+            cs
+                |> extractConstructors a
+                |> extractConstructors b
+
+        Tuple3 a b c ->
+            cs
+                |> extractConstructors a
+                |> extractConstructors b
+                |> extractConstructors c

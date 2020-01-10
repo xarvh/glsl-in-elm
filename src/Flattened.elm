@@ -4,6 +4,13 @@ import Common exposing (Name)
 import Dict exposing (Dict)
 
 
+type Type
+    = TypePrimitive Common.PrimitiveType
+    | TypeFunction Type Type
+    | TypeTuple2 Type Type
+    | TypeTuple3 Type Type Type
+
+
 type alias Expr =
     ( Expr_, Type )
 
@@ -25,5 +32,5 @@ type Expr_
         { bindings : Dict VarName (Binding Expr)
         , body : Expr
         }
-    | Tuple Expr Expr
+    | Tuple2 Expr Expr
     | Tuple3 Expr Expr Expr

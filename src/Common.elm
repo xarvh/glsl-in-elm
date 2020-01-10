@@ -12,5 +12,12 @@ type Literal
     | Bool Bool
 
 
+type PrimitiveType
+    = TypeUnit
+    | TypeInt
+    | TypeFloat
+    | TypeBool
+
+
 type Binop
     = Plus
