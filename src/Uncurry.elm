@@ -75,23 +75,27 @@ initUncurryFunctionAcc firstArgument =
     }
 
 
-uncurryFunction : Expr -> UncurryFunctionAcc -> UncurryFunctionAcc
+uncurryFunction : Flatten.Expr -> UncurryFunctionAcc -> UncurryFunctionAcc
 uncurryFunction ( fnExpr_, type_ ) accum =
     case fnExpr_ of
         Flatten.Call { fn, argument } ->
-            { accum | arguments = argument :: accum.arguments }
+            { accum | arguments = uncurry argument :: accum.arguments }
                 |> uncurryFunction fn
 
         Flatten.LetIn { bindings, body } ->
-            { accum | bindings = Dict.union bindings accum.bindings }
+            { accum
+                | bindings =
+                    bindings
+                        |> Dict.map (\k -> uncurry)
+                        |> Dict.union accum.bindings
+            }
                 |> uncurryFunction body
 
         Flatten.Var functionName ->
             { accum | functionName = functionName }
-                uncurry
 
         _ ->
-            Debug.todo <| Debug.log "" fnExpr_ ++ " is not callable, this shouldn't happen!!!"
+            Debug.todo <| Debug.toString fnExpr_ ++ " is not callable, this shouldn't happen!!!"
 
 
 
@@ -109,7 +113,10 @@ uncurry ( expr_, type_ ) =
         Flatten.Call { fn, argument } ->
             let
                 { functionName, arguments, bindings } =
-                    uncurryFunction fn (initUncurryFunctionAcc argument)
+                    argument
+                        |> uncurry
+                        |> initUncurryFunctionAcc
+                        |> uncurryFunction fn
 
                 ( call, callType ) =
                     if typeArity type_ == List.length arguments then
@@ -126,17 +133,24 @@ uncurry ( expr_, type_ ) =
                             , partialArguments = List.reverse arguments
                             }
                           --The first "previous type" will be discarded anyway
-                        , toPartialType (TypePrimitive Common.TypeUnit) type_
+                        , toPartialType (Flatten.TypePrimitive Common.TypeUnit) type_
                         )
             in
             if bindings == Dict.empty then
-                call
+                ( call
+                , callType
+                )
 
             else
-                LetIn
+                ( LetIn
                     { bindings = bindings
-                    , body = call
+                    , body =
+                        ( call
+                        , callType
+                        )
                     }
+                , callType
+                )
 
         Flatten.Literal l ->
             Literal l
@@ -192,10 +206,7 @@ uncurryType : Flatten.Type -> Type
 uncurryType type_ =
     case type_ of
         Flatten.TypeFunction from to ->
-            [ from ]
-                |> uncurryFunctionType to
-                |> List.reverse
-                |> TypeFunction
+            TypeFunction (uncurryType from) (uncurryType to)
 
         Flatten.TypePrimitive p ->
             TypePrimitive p
@@ -207,16 +218,6 @@ uncurryType type_ =
             TypeTuple3 (uncurryType a) (uncurryType b) (uncurryType c)
 
 
-uncurryFunctionType : Flatten.Type -> List Type -> List Type
-uncurryFunctionType t ts =
-    case t of
-        Flatten.TypeFunction arg out ->
-            uncurryFunctionType out (arg :: ts)
-
-        _ ->
-            uncurryType t :: ts
-
-
 
 -- Create types
 
@@ -225,7 +226,7 @@ functionTypeToList : Type -> List Type -> ( List Type, Type )
 functionTypeToList t ts =
     case t of
         TypeFunction arg return ->
-            functionTypeToList (arg :: ts) return
+            functionTypeToList return (arg :: ts)
 
         _ ->
             ( ts, t )
@@ -239,7 +240,7 @@ extractConstructors ( expr_, type_ ) cs =
                 |> extractConstructors a
                 |> extractConstructors b
 
-        CallTotal { fn, arguments } ->
+        CallTotal { functionName, arguments } ->
             List.foldl extractConstructors cs arguments
 
         CallPartial { functionName, partialArguments } ->
@@ -266,3 +267,6 @@ extractConstructors ( expr_, type_ ) cs =
                 |> extractConstructors a
                 |> extractConstructors b
                 |> extractConstructors c
+
+        _ ->
+            cs
