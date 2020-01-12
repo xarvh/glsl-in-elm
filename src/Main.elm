@@ -68,6 +68,7 @@ view model =
         globals =
             elmDeclarations
                 |> List.map .name
+                |> List.map (\n -> "Meh_" ++ n)
                 |> Set.fromList
 
         flattened =
@@ -82,11 +83,11 @@ view model =
 
                         f =
                             { name = name
-                            , args = a1.arguments
+                            , args = List.reverse a1.arguments
                             , expr = expr
                             }
                     in
-                    { a1 | generatedFunctions = f :: a1.generatedFunctions }
+                    Flatten.resetAccum { a1 | generatedFunctions = f :: a1.generatedFunctions }
 
                 _ ->
                     Debug.todo "Bkkkka"

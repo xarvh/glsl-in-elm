@@ -26,3 +26,46 @@ type Binop
 moduleAndNameToName : { module_ : String, name : String } -> String
 moduleAndNameToName { module_, name } =
     String.replace "." "_" module_ ++ "_" ++ name
+
+
+opToString : Binop -> String
+opToString op =
+    case op of
+        Plus ->
+            "+"
+
+
+literalToString : Literal -> String
+literalToString l =
+    case l of
+        Unit ->
+            "()"
+
+        Int n ->
+            String.fromInt n
+
+        Float n ->
+            String.fromFloat n
+
+        Bool b ->
+            if b then
+                "True"
+
+            else
+                "False"
+
+
+primitiveTypeToString : PrimitiveType -> String
+primitiveTypeToString p =
+    case p of
+        TypeUnit ->
+            "()"
+
+        TypeInt ->
+            "Int"
+
+        TypeFloat ->
+            "Float"
+
+        TypeBool ->
+            "Bool"

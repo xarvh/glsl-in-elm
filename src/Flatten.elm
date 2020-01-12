@@ -63,18 +63,52 @@ functionToString { name, args, expr } =
     String.join "\n"
         [ name ++ " : " ++ annotation
         , name ++ " " ++ String.join " " (List.map Tuple.first args) ++ " = "
-        , exprToString 1 expr
+        , "    " ++ exprToString expr
         ]
 
 
 typeToString : Type -> String
 typeToString t =
-    "TYPE"
+    case t of
+        TypePrimitive p ->
+            Common.primitiveTypeToString p
+
+        TypeFunction arg ret ->
+            typeToString arg ++ " -> " ++ typeToString ret
+
+        TypeTuple2 a b ->
+            "( " ++ typeToString a ++ ", " ++ typeToString b ++ " )"
+
+        TypeTuple3 a b c ->
+            "( " ++ typeToString a ++ ", " ++ typeToString b ++ ", " ++ typeToString b ++ " )"
 
 
-exprToString : Int -> Expr -> String
-exprToString indent expr =
-    "EXPR"
+exprToString : Expr -> String
+exprToString ( expr_, type_ ) =
+    case expr_ of
+        Literal l ->
+            Common.literalToString l
+
+        Var name ->
+            name
+
+        Binop op a b ->
+            exprToString a ++ " " ++ Common.opToString op ++ " " ++ exprToString b
+
+        Call { fn, argument } ->
+            "(" ++ exprToString fn ++ " " ++ exprToString argument ++ ")"
+
+        If { test, then_, else_ } ->
+            "if " ++ exprToString test ++ " then " ++ exprToString then_ ++ " else " ++ exprToString else_
+
+        LetIn _ ->
+            Debug.todo ""
+
+        Tuple2 a b ->
+            "( " ++ exprToString a ++ ", " ++ exprToString b ++ " )"
+
+        Tuple3 a b c ->
+            "( " ++ exprToString a ++ ", " ++ exprToString b ++ ", " ++ exprToString c ++ " )"
 
 
 
@@ -211,7 +245,6 @@ flattenFunction ( expr_, type_ ) acc =
                             , letInNames = Set.empty
                             , inheritedNames = Dict.empty
                             , collectingArguments = True
-                            , nextGeneratedName = acc.nextGeneratedName + 1
                         }
                             |> flattenFunction body
 
@@ -222,7 +255,7 @@ flattenFunction ( expr_, type_ ) acc =
 
                     -- add all inherited names as new function arguments
                     functionArguments =
-                        additionalArguments ++ lambdaAcc.arguments
+                        additionalArguments ++ List.reverse lambdaAcc.arguments
 
                     functionName =
                         "f" ++ String.fromInt lambdaAcc.nextGeneratedName
