@@ -1,8 +1,8 @@
 module Common exposing (..)
 
 
-type alias Name
-    = String
+type alias Name =
+    String
 
 
 type Literal
@@ -21,3 +21,8 @@ type PrimitiveType
 
 type Binop
     = Plus
+
+
+moduleAndNameToName : { module_ : String, name : String } -> String
+moduleAndNameToName { module_, name } =
+    String.replace "." "_" module_ ++ "_" ++ name

@@ -5,6 +5,7 @@ module Flatten exposing (..)
 import Common exposing (Name)
 import Dict exposing (Dict)
 import Elm.AST.Typed.Unwrapped as Elm
+import Elm.Data.Type as ElmT
 import Set exposing (Set)
 
 
@@ -40,13 +41,49 @@ type Expr_
     | Tuple3 Expr Expr Expr
 
 
+type alias FunctionDefinition =
+    { name : Name
+    , args : List ( Name, Type )
+    , expr : Expr
+    }
+
+
+
+-- To String
+
+
+functionToString : FunctionDefinition -> String
+functionToString { name, args, expr } =
+    let
+        annotation =
+            expr
+                |> Tuple.second
+                |> typeToString
+    in
+    String.join "\n"
+        [ name ++ " : " ++ annotation
+        , name ++ " " ++ String.join " " (List.map Tuple.first args) ++ " = "
+        , exprToString 1 expr
+        ]
+
+
+typeToString : Type -> String
+typeToString t =
+    "TYPE"
+
+
+exprToString : Int -> Expr -> String
+exprToString indent expr =
+    "EXPR"
+
+
 
 -- Flatten
 
 
 type alias Accum =
     { nextGeneratedName : Int
-    , generatedFunctions : List ( Name, List ( Name, Type ), Expr )
+    , generatedFunctions : List FunctionDefinition
 
     -- When we find a lambda, should we start a new function or just append a new arg?
     , collectingArguments : Bool
@@ -67,11 +104,33 @@ type alias Accum =
     }
 
 
+initAccum : Set Name -> Accum
+initAccum globals =
+    { nextGeneratedName = 0
+    , generatedFunctions = []
+    , collectingArguments = True
+    , globals = globals
+    , arguments = []
+    , letInNames = Set.empty
+    , inheritedNames = Dict.empty
+    }
+
+
+resetAccum : Accum -> Accum
+resetAccum a =
+    { a
+        | collectingArguments = True
+        , arguments = []
+        , letInNames = Set.empty
+        , inheritedNames = Dict.empty
+    }
+
+
 flattenFunction : Elm.Expr -> Accum -> ( Expr, Accum )
 flattenFunction ( expr_, type_ ) acc =
     let
-        andType ( e, acc ) =
-            ( ( e, translateType type_ ), acc )
+        andType ( e, a ) =
+            ( ( e, translateType type_ ), a )
     in
     case expr_ of
         Elm.Int n ->
@@ -86,10 +145,10 @@ flattenFunction ( expr_, type_ ) acc =
                 , acc
                 )
 
-        Elm.Char Char ->
+        Elm.Char _ ->
             Debug.todo "no chars"
 
-        Elm.String String ->
+        Elm.String _ ->
             Debug.todo "no strings"
 
         Elm.Bool b ->
@@ -100,13 +159,11 @@ flattenFunction ( expr_, type_ ) acc =
 
         Elm.Var moduleAndName ->
             acc
-                |> addToInherited (moduleAndNameToName moduleAndName) type_
-                |> andType
+                |> addToInherited (Common.moduleAndNameToName moduleAndName) (translateType type_)
 
         Elm.Argument name ->
             acc
-                |> addToInherited name type_
-                |> andType
+                |> addToInherited name (translateType type_)
 
         Elm.Plus a b ->
             let
@@ -124,13 +181,18 @@ flattenFunction ( expr_, type_ ) acc =
                 , acc2
                 )
 
-        Elm.Cons Expr Expr ->
+        Elm.Cons _ _ ->
             Debug.todo "no lists"
 
         Elm.Lambda { argument, body } ->
             let
                 argumentType =
-                    getArgumentType type_
+                    case type_ of
+                        ElmT.Function a r ->
+                            translateType a
+
+                        _ ->
+                            Debug.todo "shouldn't happen"
 
                 argumentAndType =
                     ( argument, argumentType )
@@ -146,8 +208,8 @@ flattenFunction ( expr_, type_ ) acc =
                     ( functionBody, lambdaAcc ) =
                         { acc
                             | arguments = [ argumentAndType ]
-                            , letInNames = Dict.empty
-                            , inheritedNames = Set.empty
+                            , letInNames = Set.empty
+                            , inheritedNames = Dict.empty
                             , collectingArguments = True
                             , nextGeneratedName = acc.nextGeneratedName + 1
                         }
@@ -166,7 +228,10 @@ flattenFunction ( expr_, type_ ) acc =
                         "f" ++ String.fromInt lambdaAcc.nextGeneratedName
 
                     newFunction =
-                        ( functionName, functionArguments, functionBody )
+                        { name = functionName
+                        , args = functionArguments
+                        , expr = functionBody
+                        }
 
                     newAcc =
                         { acc
@@ -178,12 +243,13 @@ flattenFunction ( expr_, type_ ) acc =
                     functionType =
                         List.foldl (\( argName, argType ) funType -> TypeFunction argType funType) (translateType type_) additionalArguments
 
+                    addArgumentToCall : ( String, Type ) -> Expr -> Expr
                     addArgumentToCall ( argName, argType ) ( fnExpr, fnType ) =
                         ( Call
                             { fn = ( fnExpr, fnType )
-                            , argument = argName
+                            , argument = ( Var argName, argType )
                             }
-                        , TypeFunction argType typ
+                        , TypeFunction argType fnType
                         )
 
                     -- add new arguments to call
@@ -195,37 +261,67 @@ flattenFunction ( expr_, type_ ) acc =
                 )
 
         Elm.Call { fn, argument } ->
-            recurse
+            let
+                acc0 =
+                    { acc | collectingArguments = False }
+
+                ( aExpr, acc1 ) =
+                    flattenFunction fn acc0
+
+                ( bExpr, acc2 ) =
+                    flattenFunction argument acc1
+            in
+            andType
+                ( Call { fn = aExpr, argument = bExpr }
+                , acc2
+                )
 
         Elm.If { test, then_, else_ } ->
-            recurse
+            let
+                acc0 =
+                    { acc | collectingArguments = False }
+
+                ( testExpr, acc1 ) =
+                    flattenFunction test acc0
+
+                ( thenExpr, acc2 ) =
+                    flattenFunction then_ acc1
+
+                ( elseExpr, acc3 ) =
+                    flattenFunction else_ acc2
+            in
+            andType
+                ( If { test = testExpr, then_ = thenExpr, else_ = elseExpr }
+                , acc3
+                )
 
         Elm.Let { bindings, body } ->
-            add to letInNames
+            Debug.todo "todo let..in"
 
-        Elm.List (List Expr) ->
+        Elm.List _ ->
             Debug.todo "no lists"
 
         Elm.Unit ->
-            ( Literal Common.Unit
-            , acc
-            )
+            andType
+                ( Literal Common.Unit
+                , acc
+                )
 
         Elm.Tuple a b ->
-            recurse
+            Debug.todo "(,)"
 
         Elm.Tuple3 a b c ->
-            recurse
+            Debug.todo "(,,)"
+
+        Elm.Record _ ->
+            Debug.todo "not implemented"
 
 
-addToInherited : Name -> Elm.Type -> Acc -> ( Expr_, Acc )
-addToInherited name elmType acc =
+addToInherited : Name -> Type -> Accum -> ( Expr, Accum )
+addToInherited name type_ acc =
     let
-        type_ =
-            translateType elmType
-
         isDeclaredWithin =
-            Dict.member name acc.letInNames || List.member name acc.arguments
+            Set.member name acc.letInNames || List.member ( name, type_ ) acc.arguments
 
         isGlobal =
             Set.member name acc.globals
@@ -240,3 +336,47 @@ addToInherited name elmType acc =
       else
         acc
     )
+
+
+translateType : ElmT.Type -> Type
+translateType elmType =
+    case elmType of
+        ElmT.Var a ->
+            TypePrimitive Common.TypeUnit
+
+        --Debug.todo "type variables should be resolved in a previous step"
+        ElmT.Function argument return ->
+            TypeFunction (translateType argument) (translateType return)
+
+        ElmT.Int ->
+            TypePrimitive Common.TypeInt
+
+        ElmT.Float ->
+            TypePrimitive Common.TypeFloat
+
+        ElmT.Char ->
+            Debug.todo "Char not supported"
+
+        ElmT.String ->
+            Debug.todo "String not supported"
+
+        ElmT.Bool ->
+            TypePrimitive Common.TypeBool
+
+        ElmT.List _ ->
+            Debug.todo "List not supported"
+
+        ElmT.Unit ->
+            TypePrimitive Common.TypeUnit
+
+        ElmT.Tuple a b ->
+            TypeTuple2 (translateType a) (translateType b)
+
+        ElmT.Tuple3 a b c ->
+            TypeTuple3 (translateType a) (translateType b) (translateType c)
+
+        ElmT.UserDefinedType { module_, name } _ ->
+            Debug.todo "not implemented"
+
+        ElmT.Record _ ->
+            Debug.todo "not implemented"

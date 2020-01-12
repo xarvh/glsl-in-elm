@@ -1,7 +1,6 @@
 module Main exposing (..)
 
 import Browser
-import Crawl
 import Dict
 import Elm.AST.Typed as Typed
 import Elm.AST.Typed.Unwrapped
@@ -15,6 +14,7 @@ import Html exposing (..)
 import Html.Attributes exposing (class, classList, style)
 import Html.Events
 import PrettyPrint
+import Set exposing (Set)
 import Uncurry
 
 
@@ -65,15 +65,31 @@ view model =
                 |> Result.map (.declarations >> Dict.values)
                 |> Result.withDefault []
 
-        --         unc =
-        --             Flatten.test
-        --                 |> Uncurry.uncurry
-        --
-        --         constr =
-        --             Uncurry.extractConstructors unc []
---         blockAccumulator =
---             --Translate.translateDeclarationInit
---             List.foldl Translate.translateDeclaration Translate.translateDeclarationInit elmDeclarations
+        globals =
+            elmDeclarations
+                |> List.map .name
+                |> Set.fromList
+
+        flattened =
+            List.foldl flattenDeclaration (Flatten.initAccum globals) elmDeclarations
+
+        flattenDeclaration { name, body } a0 =
+            case body of
+                Elm.Data.Declaration.Value v ->
+                    let
+                        ( expr, a1 ) =
+                            Flatten.flattenFunction v a0
+
+                        f =
+                            { name = name
+                            , args = a1.arguments
+                            , expr = expr
+                            }
+                    in
+                    { a1 | generatedFunctions = f :: a1.generatedFunctions }
+
+                _ ->
+                    Debug.todo "Bkkkka"
     in
     div
         []
@@ -91,8 +107,8 @@ view model =
                     []
                     [ code
                         []
-                        [ elmDeclarations
-                            |> List.map viewCrawl
+                        [ flattened.generatedFunctions
+                            |> List.map Flatten.functionToString
                             |> String.join "\n\n"
                             |> text
                         ]
@@ -102,7 +118,8 @@ view model =
                 []
                 [ code
                     []
-                    [ [] --blockAccumulator.declarations
+                    [ []
+                        --blockAccumulator.declarations
                         |> List.map GLSL.AST.declarationToString
                         |> String.join "\n\n"
                         |> text
@@ -124,18 +141,6 @@ view model =
             ]
         , node "style" [] [ text css ]
         ]
-
-
-viewCrawl declaration =
-    case declaration.body of
-        Elm.Data.Declaration.Value elmExpr ->
-            Crawl.initScope
-                |> Crawl.crawl elmExpr
-                |> Debug.toString
-                |> PrettyPrint.toStringPretty
-
-        _ ->
-            ""
 
 
 viewDeclaration declaration =
