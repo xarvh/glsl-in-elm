@@ -1,9 +1,7 @@
 module Main exposing (..)
 
-import Flatten
-import Uncurry
 import Browser
--- import Crawl
+import Crawl
 import Dict
 import Elm.AST.Typed as Typed
 import Elm.AST.Typed.Unwrapped
@@ -11,11 +9,16 @@ import Elm.Compiler
 import Elm.Compiler.Error exposing (Error)
 import Elm.Data.Declaration
 import Elm.Data.Module as Module exposing (Module)
+import Flatten
 import GLSL.AST
 import Html exposing (..)
 import Html.Attributes exposing (class, classList, style)
 import Html.Events
--- import PrettyPrint
+import PrettyPrint
+import Uncurry
+
+
+
 -- import Translate
 
 
@@ -62,10 +65,15 @@ view model =
                 |> Result.map (.declarations >> Dict.values)
                 |> Result.withDefault []
 
+        --         unc =
+        --             Flatten.test
+        --                 |> Uncurry.uncurry
+        --
+        --         constr =
+        --             Uncurry.extractConstructors unc []
 --         blockAccumulator =
---             Translate.translateDeclarationInit
-
-        --List.foldl Translate.translateDeclaration Translate.translateDeclarationInit elmDeclarations
+--             --Translate.translateDeclarationInit
+--             List.foldl Translate.translateDeclaration Translate.translateDeclarationInit elmDeclarations
     in
     div
         []
