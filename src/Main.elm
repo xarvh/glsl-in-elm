@@ -91,6 +91,13 @@ view model =
 
                 _ ->
                     Debug.todo "Bkkkka"
+
+        uncurried =
+            flattened.generatedFunctions
+                |> List.map Uncurry.uncurryFunctionDefinition
+
+        constructors =
+            List.foldl (\def -> Uncurry.extractConstructors def.expr) [] uncurried
     in
     div
         []
@@ -101,7 +108,7 @@ view model =
                 [ textarea
                     [ Html.Events.onInput OnInput
                     , style "min-height" "300px"
-                    , style "min-width" "900px"
+                    , style "min-width" "600px"
                     ]
                     [ text model ]
                 , pre
@@ -115,13 +122,15 @@ view model =
                         ]
                     ]
                 ]
-            , pre
+            ]
+        , div
+            [ class "flex-row" ]
+            [ pre
                 []
                 [ code
                     []
-                    [ []
-                        --blockAccumulator.declarations
-                        |> List.map GLSL.AST.declarationToString
+                    [ uncurried
+                        |> List.map Uncurry.functionToString
                         |> String.join "\n\n"
                         |> text
                     ]
@@ -129,16 +138,16 @@ view model =
             ]
         , div
             [ class "flex-row" ]
-            [ case result of
-                Err blah ->
-                    div
-                        []
-                        [ text (Debug.toString blah) ]
-
-                Ok stuff ->
-                    div
-                        []
-                        [ text (Debug.toString stuff) ]
+            [ pre
+                []
+                [ code
+                    []
+                    [ constructors
+                        |> List.map Debug.toString
+                        |> String.join "\n\n"
+                        |> text
+                    ]
+                ]
             ]
         , node "style" [] [ text css ]
         ]

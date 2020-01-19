@@ -42,10 +42,7 @@ type Expr_
 
 
 type alias FunctionDefinition =
-    { name : Name
-    , args : List ( Name, Type )
-    , expr : Expr
-    }
+    Common.FunctionDefinition Type Expr
 
 
 
@@ -56,9 +53,9 @@ functionToString : FunctionDefinition -> String
 functionToString { name, args, expr } =
     let
         annotation =
-            expr
-                |> Tuple.second
-                |> typeToString
+            (List.map Tuple.second args ++ [ Tuple.second expr])
+                |> List.map typeToString
+                |> String.join " -> "
     in
     String.join "\n"
         [ name ++ " : " ++ annotation
@@ -192,6 +189,14 @@ flattenFunction ( expr_, type_ ) acc =
                 )
 
         Elm.Var moduleAndName ->
+            let
+                q =
+                    if moduleAndName.name == "meh" then
+                        Debug.log "meh" type_
+
+                    else
+                        type_
+            in
             acc
                 |> addToInherited (Common.moduleAndNameToName moduleAndName) (translateType type_)
 
@@ -239,6 +244,10 @@ flattenFunction ( expr_, type_ ) acc =
             else
                 let
                     -- This is a new function declaration, reset the accumulator accordingly
+                    --
+                    -- TODO rework the accumulators so that we just create a new type and insert the
+                    -- "parent accumulator" fields as a single attribute
+                    --
                     ( functionBody, lambdaAcc ) =
                         { acc
                             | arguments = [ argumentAndType ]
@@ -248,24 +257,30 @@ flattenFunction ( expr_, type_ ) acc =
                         }
                             |> flattenFunction body
 
+                    additionalArguments : List ( Name, Type )
                     additionalArguments =
                         lambdaAcc.inheritedNames
                             |> Dict.toList
                             |> List.sortBy Tuple.first
 
                     -- add all inherited names as new function arguments
+                    functionArguments : List ( Name, Type )
                     functionArguments =
                         additionalArguments ++ List.reverse lambdaAcc.arguments
 
+                    functionName : Name
                     functionName =
-                        "f" ++ String.fromInt lambdaAcc.nextGeneratedName
+                        Common.generateFunctionName lambdaAcc.nextGeneratedName
 
+                    newFunction : Common.FunctionDefinition Type Expr
                     newFunction =
                         { name = functionName
                         , args = functionArguments
                         , expr = functionBody
                         }
+                            |> Debug.log "fd"
 
+                    newAcc : Accum
                     newAcc =
                         { acc
                             | nextGeneratedName = lambdaAcc.nextGeneratedName + 1
@@ -273,6 +288,7 @@ flattenFunction ( expr_, type_ ) acc =
                         }
 
                     -- add new arguments to type
+                    functionType : Type
                     functionType =
                         List.foldl (\( argName, argType ) funType -> TypeFunction argType funType) (translateType type_) additionalArguments
 
