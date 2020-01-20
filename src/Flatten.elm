@@ -53,7 +53,7 @@ functionToString : FunctionDefinition -> String
 functionToString { name, args, expr } =
     let
         annotation =
-            (List.map Tuple.second args ++ [ Tuple.second expr])
+            (List.map Tuple.second args ++ [ Tuple.second expr ])
                 |> List.map typeToString
                 |> String.join " -> "
     in
@@ -189,14 +189,6 @@ flattenFunction ( expr_, type_ ) acc =
                 )
 
         Elm.Var moduleAndName ->
-            let
-                q =
-                    if moduleAndName.name == "meh" then
-                        Debug.log "meh" type_
-
-                    else
-                        type_
-            in
             acc
                 |> addToInherited (Common.moduleAndNameToName moduleAndName) (translateType type_)
 
@@ -292,6 +284,9 @@ flattenFunction ( expr_, type_ ) acc =
                     functionType =
                         List.foldl (\( argName, argType ) funType -> TypeFunction argType funType) (translateType type_) additionalArguments
 
+                    {-
+                       `theFunction` --> `theFunction arg1 arg2 ...`
+                    -}
                     addArgumentToCall : ( String, Type ) -> Expr -> Expr
                     addArgumentToCall ( argName, argType ) ( fnExpr, fnType ) =
                         ( Call
@@ -304,6 +299,19 @@ flattenFunction ( expr_, type_ ) acc =
                     -- add new arguments to call
                     callExpr =
                         List.foldl addArgumentToCall ( Var functionName, functionType ) additionalArguments
+
+                    -- debug stuff
+                    breakDownCall ( e, t ) a =
+                        case e of
+                            Call stuff ->
+                                stuff.fn :: breakDownCall stuff.fn a
+
+                            _ ->
+                                a
+
+                    q =
+                        breakDownCall callExpr []
+                            |> List.map (\( e, t ) -> exprToString ( e, t ) ++ " : " ++ typeToString t |> Debug.log functionName)
                 in
                 ( callExpr
                 , newAcc
@@ -357,7 +365,20 @@ flattenFunction ( expr_, type_ ) acc =
                 )
 
         Elm.Tuple a b ->
-            Debug.todo "(,)"
+            let
+                acc0 =
+                    { acc | collectingArguments = False }
+
+                ( aExpr, acc1 ) =
+                    flattenFunction a acc0
+
+                ( bExpr, acc2 ) =
+                    flattenFunction b acc1
+            in
+            andType
+                ( Tuple2 aExpr bExpr
+                , acc2
+                )
 
         Elm.Tuple3 a b c ->
             Debug.todo "(,,)"

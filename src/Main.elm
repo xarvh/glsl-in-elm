@@ -25,6 +25,19 @@ import Uncurry
 init =
     """module Meh exposing (..)
 
+someFunction =
+    \\aaaa bbbb ->
+        ( \\f -> 3 + aaaa + bbbb
+        , \\x -> 5
+        )
+"""
+
+
+
+
+xxx =
+  """
+
 ooo = 9
 
 meh = \\a b -> 3 + ooo
@@ -129,7 +142,14 @@ view model =
                 []
                 [ code
                     []
-                    [ uncurried
+                    [ case result of
+                      Err err ->
+                        err
+                          |> Debug.toString
+                          |> PrettyPrint.toStringPretty
+                          |> text
+                      Ok _ ->
+                        uncurried
                         |> List.map Uncurry.functionToString
                         |> String.join "\n\n"
                         |> text
