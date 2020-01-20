@@ -293,7 +293,12 @@ flattenFunction ( expr_, type_ ) acc =
                             { fn = ( fnExpr, fnType )
                             , argument = ( Var argName, argType )
                             }
-                        , TypeFunction argType fnType
+                        , case fnType of
+                            TypeFunction arg value ->
+                                value
+
+                            _ ->
+                                Debug.todo "this should not happen"
                         )
 
                     -- add new arguments to call
