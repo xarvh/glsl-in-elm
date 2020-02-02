@@ -25,18 +25,20 @@ import Uncurry
 init =
     """module Meh exposing (..)
 
+
+meh = \\a b -> 3 + a
+
+
 someFunction =
-    \\aaaa bbbb ->
-        ( \\f -> 3 + aaaa + bbbb
-        , \\x -> 5
-        )
+     meh 5
+
 """
 
 
 
 
-xxx =
-  """
+xx =
+  """module Meh exposing (..)
 
 ooo = 9
 
@@ -88,6 +90,7 @@ view model =
             List.foldl flattenDeclaration (Flatten.initAccum globals) elmDeclarations
 
         flattenDeclaration { name, body } a0 =
+            -- TODO move this in Flatten
             case body of
                 Elm.Data.Declaration.Value v ->
                     let

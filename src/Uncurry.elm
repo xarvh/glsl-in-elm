@@ -68,9 +68,9 @@ functionToString : FunctionDefinition -> String
 functionToString { name, args, expr } =
     let
         annotation =
-            expr
-                |> Tuple.second
-                |> typeToString
+            (List.map Tuple.second args ++ [ Tuple.second expr ])
+                |> List.map typeToString
+                |> String.join " -> "
     in
     String.join "\n"
         [ name ++ " : " ++ annotation
@@ -111,10 +111,10 @@ exprToString ( expr_, type_ ) =
             exprToString a ++ " " ++ Common.opToString op ++ " " ++ exprToString b
 
         CallTotal { functionName, arguments } ->
-            "(" ++ functionName ++ (arguments |> List.map exprToString |> String.join " ") ++ ")"
+            "(" ++ functionName ++ " " ++ (arguments |> List.map exprToString |> String.join " ") ++ ")"
 
         CallPartial { functionName, partialArguments } ->
-            "(" ++ functionName ++ (partialArguments |> List.map exprToString |> String.join " ") ++ ")"
+            "{" ++ functionName ++ " " ++ (partialArguments |> List.map exprToString |> String.join " ") ++ "}"
 
         If { test, then_, else_ } ->
             "if " ++ exprToString test ++ " then " ++ exprToString then_ ++ " else " ++ exprToString else_

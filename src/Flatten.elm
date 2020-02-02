@@ -270,7 +270,6 @@ flattenFunction ( expr_, type_ ) acc =
                         , args = functionArguments
                         , expr = functionBody
                         }
-                            |> Debug.log "fd"
 
                     newAcc : Accum
                     newAcc =
@@ -306,17 +305,19 @@ flattenFunction ( expr_, type_ ) acc =
                         List.foldl addArgumentToCall ( Var functionName, functionType ) additionalArguments
 
                     -- debug stuff
-                    breakDownCall ( e, t ) a =
-                        case e of
-                            Call stuff ->
-                                stuff.fn :: breakDownCall stuff.fn a
+                    {-
+                       breakDownCall ( e, t ) a =
+                           case e of
+                               Call stuff ->
+                                   stuff.fn :: breakDownCall stuff.fn a
 
-                            _ ->
-                                a
+                               _ ->
+                                   a
 
-                    q =
-                        breakDownCall callExpr []
-                            |> List.map (\( e, t ) -> exprToString ( e, t ) ++ " : " ++ typeToString t |> Debug.log functionName)
+                       q =
+                           breakDownCall callExpr []
+                               |> List.map (\( e, t ) -> exprToString ( e, t ) ++ " : " ++ typeToString t |> Debug.log functionName)
+                    -}
                 in
                 ( callExpr
                 , newAcc
