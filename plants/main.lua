@@ -1,3 +1,15 @@
+local pprint = require('pprint')
+
+
+
+local maxBranchesPerTree = 10
+local maxChildrenPerBranch = 3
+
+
+
+
+
+
 local plantVertexShader = [[
 
 uniform vec2 u_size;
@@ -67,7 +79,7 @@ bool pointInsideQuad(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
 /*
  * LOVE stuff
  */
-#define branches_per_tree 2
+#define branches_per_tree ]] .. maxBranchesPerTree .. "\n" .. [[
 #define vertex_per_branch 4
 
 varying vec2 v_pos;
@@ -96,13 +108,88 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
 
 
 
+-- Tree Generation -----------------------------------------------------------
 
+
+
+function makeSpeciesWord(wordsCount)
+  local word = {}
+  local continuationsCount = love.math.random(1, 3)
+
+  word.continuation = {}
+  for i=1,continuationsCount do
+    table.insert(word.continuation, love.math.random(1, wordsCount))
+  end
+
+  return word
+end
+
+
+
+function makeSpecies()
+  local tree = {}
+
+  local wordsCount = love.math.random(1, 5)
+
+  for i=1,wordsCount do
+    table.insert(tree, makeSpeciesWord(wordsCount))
+  end
+
+  return tree
+end
+
+
+
+function newChildBranch(parentBranch, childIndex)
+
+  local branch = {}
+  branch.name = parentBranch.name .. childIndex
+  branch.targetNumberOfChildren = 2
+  return branch
+
+end
+
+
+function makeTree(species)
+
+  local rootBranch = {}
+  rootBranch.name = "R"
+  rootBranch.targetNumberOfChildren = 2
+
+  local growingStart = 1
+  local growingEnd = 1
+  local branches = { rootBranch }
+
+  while #branches < maxBranchesPerTree do
+    for childBranchIndex = 1, maxChildrenPerBranch do
+      for branchIndex = growingStart, growingEnd do
+        branch = branches[branchIndex]
+        if childBranchIndex <= branch.targetNumberOfChildren and #branches < maxBranchesPerTree then
+          table.insert(branches, newChildBranch(branch, childBranchIndex))
+        end
+      end
+    end
+    growingStart = growingEnd + 1
+    growingEnd = #branches
+  end
+
+  return branches
+end
+
+
+
+
+-- Main -----------------------------------------------------------
 
 function love.load()
     screen = love.graphics.newShader(plantFragmentShader, plantVertexShader)
+
+    species = makeSpecies()
+    makeTree(species)
 end
 
 function love.draw()
+
     local ww = love.graphics.getWidth()
     local wh = love.graphics.getHeight()
 
