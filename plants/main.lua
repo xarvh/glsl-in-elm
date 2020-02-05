@@ -169,7 +169,6 @@ function signRandom()
     return -1
   end
   return 1
-
 end
 
 
@@ -184,11 +183,12 @@ function makeSpeciesWord(ranges, wordsCount)
   word.bottomWidth = rangeSub(ranges.bottomWidth)
   word.relativeTopWidth = rangeSub(ranges.relativeTopWidth)
   word.angle = rangeSub(ranges.angle)
+  word.verticality = love.math.random(0, 1)
 
   word.children = {}
   local childrenCount = rangeRandom(ranges.childrenCount)
 
-  for i=1,childrenCount do
+  for i = 1, childrenCount do
     table.insert(word.children, love.math.random(1, wordsCount))
   end
 
@@ -238,7 +238,7 @@ function branchNew(word, maybeParent)
   if maybeParent then
     local parent = maybeParent
     branch.origin = parent.tip
-    branch.angle = parent.angle + angle
+    branch.angle = branch.word.verticality * parent.angle + angle
     branch.length = parent.length * rangeRandom(word.length)
     branch.bottomWidth = parent.topWidth * rangeRandom(word.bottomWidth)
   else
