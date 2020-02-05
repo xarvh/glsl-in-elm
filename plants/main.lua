@@ -152,16 +152,24 @@ function rangeNew(a, b, isInt)
   return r
 end
 
-function rangeSub(range)
-  return rangeNew(rangeRandom(range), rangeRandom(range))
-end
-
 function rangeRandom(range)
   if range.isInt then
     return love.math.random(range.min, range.max)
   else
     return range.min + love.math.random() * (range.max - range.min)
   end
+end
+
+function rangeSub(range)
+  return rangeNew(rangeRandom(range), rangeRandom(range))
+end
+
+function signRandom()
+  if love.math.random(0, 1) == 0 then
+    return -1
+  end
+  return 1
+
 end
 
 
@@ -195,7 +203,7 @@ function speciesNew()
   ranges.length = rangeNew(0.3, 0.9)
   ranges.bottomWidth = rangeNew(0.9, 1.0)
   ranges.relativeTopWidth = rangeNew(0.4, 1)
-  ranges.angle = rangeNew(-0.25 * math.pi, 0.25 * math.pi)
+  ranges.angle = rangeNew(0, 0.25 * math.pi)
   ranges.childrenCount = rangeNew(1, 3, "integer")
 
   local wordsCount = love.math.random(1, 5)
@@ -225,15 +233,17 @@ function branchNew(word, maybeParent)
   local branch = {}
   branch.word = word
 
+  local angle = signRandom() * rangeRandom(word.angle)
+
   if maybeParent then
     local parent = maybeParent
     branch.origin = parent.tip
-    branch.angle = parent.angle + rangeRandom(word.angle)
+    branch.angle = parent.angle + angle
     branch.length = parent.length * rangeRandom(word.length)
     branch.bottomWidth = parent.topWidth * rangeRandom(word.bottomWidth)
   else
     branch.origin = vec2(0, 0.5)
-    branch.angle = 0.3 * rangeRandom(word.angle)
+    branch.angle = 0.3 * angle
     branch.length = 0.4 * rangeRandom(word.length)
     branch.bottomWidth = 0.04 * rangeRandom(word.bottomWidth)
   end
