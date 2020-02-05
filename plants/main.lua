@@ -98,13 +98,47 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
       }
     }
 
-    vec3 color = isInside ? vec3(1.0) : vec3(0.0);
+    float d = 99.0;
+    d = min(d, distance(v_pos, ub[0]));
+    d = min(d, distance(v_pos, ub[1]));
+    d = min(d, distance(v_pos, ub[2]));
+    d = min(d, distance(v_pos, ub[3]));
+
+    //float g = v_pos.y > 0.0 ? 0.5 : 0.1;
+    float g = sqrt(d);
+
+    vec3 color = isInside ? vec3(1.0) : vec3(0.0, g, 0.0);
 
     return vec4(color, 1.0);
 }
 
 
 ]]
+
+
+-- Linear --------------------------------------------------------------------
+
+
+function vec2(x, y)
+  local v = {}
+  v.x = x
+  v.y = y
+  return v
+end
+
+function vec2add(a, b)
+  return vec2(a.x + b.x, a.y + b.y)
+end
+
+function vec2sub(a, b)
+  return vec2(a.x - b.x, a.y - b.y)
+end
+
+function vec2rotate(v, angle)
+  local sinA = math.sin(-angle)
+  local cosA = math.cos(angle)
+  return vec2(v.x * cosA - v.y * sinA, v.x * sinA + v.y * cosA)
+end
 
 
 
@@ -155,19 +189,19 @@ end
 
 
 
-function makeSpecies()
+function speciesNew()
 
   local ranges = {}
-  ranges.length = rangeNew(0.2, 0.3)
-  ranges.bottomWidth = rangeNew(0.03, 0.04)
+  ranges.length = rangeNew(0.4, 0.5)
+  ranges.bottomWidth = rangeNew(0.5, 1)
   ranges.relativeTopWidth = rangeNew(0.5, 1)
-  ranges.angle = rangeNew(0, 0)
-  ranges.childrenCount = rangeNew(1, 3, "int")
+  ranges.angle = rangeNew(-0.25 * math.pi, 0.25 * math.pi)
+  ranges.childrenCount = rangeNew(1, 3, "integer")
 
   local wordsCount = love.math.random(1, 5)
 
   local species = {}
-  for i=1,wordsCount do
+  for i = 1, wordsCount do
     table.insert(species, makeSpeciesWord(ranges, wordsCount))
   end
 
@@ -189,21 +223,33 @@ end
 
 function branchNew(word, maybeParent)
   local branch = {}
-
   branch.word = word
-  branch.length = rangeRandom(word.length)
-  branch.bottomWidth = rangeRandom(word.bottomWidth)
-  branch.relativeTopWidth = rangeRandom(word.relativeTopWidth)
-  branch.angle = rangeRandom(word.angle)
+
+  if maybeParent then
+    local parent = maybeParent
+    branch.origin = parent.tip
+    branch.angle = parent.angle + rangeRandom(word.angle)
+    branch.length = parent.length * rangeRandom(word.length)
+    branch.bottomWidth = parent.bottomWidth * rangeRandom(word.bottomWidth)
+  else
+    branch.origin = vec2(0, 0.5)
+    branch.angle = 0.5 * rangeRandom(word.angle)
+    branch.length = 0.4 * rangeRandom(word.length)
+    branch.bottomWidth = 0.1 * rangeRandom(word.bottomWidth)
+  end
+
+  local tipOffset = vec2rotate(vec2(0, -branch.length), branch.angle)
+  branch.tip = vec2add(branch.origin, tipOffset)
+  branch.topWidth = branch.bottomWidth * rangeRandom(word.relativeTopWidth)
 
   return branch
 end
 
 
 
-function makeTree(species)
+function treeNew(species)
 
-  local rootBranch = wordToBranch(species[1], nil)
+  local rootBranch = branchNew(species[1], nil)
 
   local growingStart = 1
   local growingEnd = 1
@@ -212,9 +258,10 @@ function makeTree(species)
   while #branches < maxBranchesPerTree do
     for childBranchIndex = 1, maxChildrenPerBranch do
       for branchIndex = growingStart, growingEnd do
-        branch = branches[branchIndex]
-        if childBranchIndex <= branch.targetNumberOfChildren and #branches < maxBranchesPerTree then
-          table.insert(branches, newChildBranch(branch, childBranchIndex))
+        local branch = branches[branchIndex]
+        if childBranchIndex <= #(branch.word.children) and #branches < maxBranchesPerTree then
+          local wordIndex = branch.word.children[childBranchIndex]
+          table.insert(branches, branchNew(species[wordIndex], branch))
         end
       end
     end
@@ -222,10 +269,22 @@ function makeTree(species)
     growingEnd = #branches
   end
 
+  pprint(branches)
   return branches
 end
 
 
+function branchToQuad(branch)
+  local ht = vec2rotate(vec2(0.5 * branch.topWidth, 0), branch.angle)
+  local bt = vec2rotate(vec2(0.5 * branch.bottomWidth, 0), branch.angle)
+
+  local a = vec2add(branch.origin, bt)
+  local b = vec2sub(branch.origin, bt)
+  local c = vec2sub(branch.tip, ht)
+  local d = vec2add(branch.tip, ht)
+
+  return { a, b, c, d }
+end
 
 
 -- Main -----------------------------------------------------------
@@ -233,9 +292,18 @@ end
 function love.load()
     screen = love.graphics.newShader(plantFragmentShader, plantVertexShader)
 
-    species = makeSpecies()
-    pprint(species)
-    makeTree(species)
+    species = speciesNew()
+    tree = treeNew(species)
+
+    branchQuads = {}
+    for i, b in ipairs(tree) do
+      local q = branchToQuad(b)
+      for d = 1, 4 do
+        table.insert(branchQuads, { q[d].x, q[d].y })
+      end
+    end
+
+    pprint(branchQuads)
 end
 
 function love.draw()
@@ -247,11 +315,6 @@ function love.draw()
     local x = math.floor(ww / 2 - s / 2)
     local y = math.floor(wh / 2 - s / 2)
 
-    local branches = {
-      { -0.3, -0.5 }, { 0.6, 0.0 }, { 0.5, 0.5 }, { -0.1, 0.5 },
-      { -0.4, -0.4 }, { -0.3, -0.4 }, { -0.3, -0.3 }, { -0.4, -0.3 },
-    }
-
     local shaderQuad = {
         x - 0, y - 0,
         x + s, y - 0,
@@ -262,7 +325,7 @@ function love.draw()
     love.graphics.setShader(screen)
     screen:send("u_size", { s, s })
     screen:send("u_topLeft", { x, y })
-    screen:send("u_branches", unpack(branches))
+    screen:send("u_branches", unpack(branchQuads))
 
     love.graphics.polygon("fill", shaderQuad)
 end
