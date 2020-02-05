@@ -108,17 +108,46 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
 
 
 
+-- Ranges --------------------------------------------------------------------
+
+function rangeNew(a, b, isInt)
+  local r = {}
+  r.min = math.min(a, b)
+  r.max = math.max(a, b)
+  r.isInt = isInt
+  return r
+end
+
+function rangeSub(range)
+  return rangeNew(rangeRandom(range), rangeRandom(range))
+end
+
+function rangeRandom(range)
+  if range.isInt then
+    return love.math.random(range.min, range.max)
+  else
+    return range.min + love.math.random() * (range.max - range.min)
+  end
+end
+
+
 -- Tree Generation -----------------------------------------------------------
 
 
 
-function makeSpeciesWord(wordsCount)
-  local word = {}
-  local continuationsCount = love.math.random(1, 3)
+function makeSpeciesWord(ranges, wordsCount)
 
-  word.continuation = {}
-  for i=1,continuationsCount do
-    table.insert(word.continuation, love.math.random(1, wordsCount))
+  local word = {}
+  word.length = rangeSub(ranges.length)
+  word.bottomWidth = rangeSub(ranges.bottomWidth)
+  word.relativeTopWidth = rangeSub(ranges.relativeTopWidth)
+  word.angle = rangeSub(ranges.angle)
+
+  word.children = {}
+  local childrenCount = rangeRandom(ranges.childrenCount)
+
+  for i=1,childrenCount do
+    table.insert(word.children, love.math.random(1, wordsCount))
   end
 
   return word
@@ -127,15 +156,22 @@ end
 
 
 function makeSpecies()
-  local tree = {}
+
+  local ranges = {}
+  ranges.length = rangeNew(0.2, 0.3)
+  ranges.bottomWidth = rangeNew(0.03, 0.04)
+  ranges.relativeTopWidth = rangeNew(0.5, 1)
+  ranges.angle = rangeNew(0, 0)
+  ranges.childrenCount = rangeNew(1, 3, "int")
 
   local wordsCount = love.math.random(1, 5)
 
+  local species = {}
   for i=1,wordsCount do
-    table.insert(tree, makeSpeciesWord(wordsCount))
+    table.insert(species, makeSpeciesWord(ranges, wordsCount))
   end
 
-  return tree
+  return species
 end
 
 
@@ -150,11 +186,24 @@ function newChildBranch(parentBranch, childIndex)
 end
 
 
+
+function branchNew(word, maybeParent)
+  local branch = {}
+
+  branch.word = word
+  branch.length = rangeRandom(word.length)
+  branch.bottomWidth = rangeRandom(word.bottomWidth)
+  branch.relativeTopWidth = rangeRandom(word.relativeTopWidth)
+  branch.angle = rangeRandom(word.angle)
+
+  return branch
+end
+
+
+
 function makeTree(species)
 
-  local rootBranch = {}
-  rootBranch.name = "R"
-  rootBranch.targetNumberOfChildren = 2
+  local rootBranch = wordToBranch(species[1], nil)
 
   local growingStart = 1
   local growingEnd = 1
@@ -185,6 +234,7 @@ function love.load()
     screen = love.graphics.newShader(plantFragmentShader, plantVertexShader)
 
     species = makeSpecies()
+    pprint(species)
     makeTree(species)
 end
 
