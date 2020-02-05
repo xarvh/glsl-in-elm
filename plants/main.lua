@@ -192,9 +192,9 @@ end
 function speciesNew()
 
   local ranges = {}
-  ranges.length = rangeNew(0.4, 0.5)
-  ranges.bottomWidth = rangeNew(0.5, 1)
-  ranges.relativeTopWidth = rangeNew(0.5, 1)
+  ranges.length = rangeNew(0.3, 0.9)
+  ranges.bottomWidth = rangeNew(0.9, 1.0)
+  ranges.relativeTopWidth = rangeNew(0.4, 1)
   ranges.angle = rangeNew(-0.25 * math.pi, 0.25 * math.pi)
   ranges.childrenCount = rangeNew(1, 3, "integer")
 
@@ -230,12 +230,12 @@ function branchNew(word, maybeParent)
     branch.origin = parent.tip
     branch.angle = parent.angle + rangeRandom(word.angle)
     branch.length = parent.length * rangeRandom(word.length)
-    branch.bottomWidth = parent.bottomWidth * rangeRandom(word.bottomWidth)
+    branch.bottomWidth = parent.topWidth * rangeRandom(word.bottomWidth)
   else
     branch.origin = vec2(0, 0.5)
-    branch.angle = 0.5 * rangeRandom(word.angle)
+    branch.angle = 0.3 * rangeRandom(word.angle)
     branch.length = 0.4 * rangeRandom(word.length)
-    branch.bottomWidth = 0.1 * rangeRandom(word.bottomWidth)
+    branch.bottomWidth = 0.04 * rangeRandom(word.bottomWidth)
   end
 
   local tipOffset = vec2rotate(vec2(0, -branch.length), branch.angle)
@@ -269,7 +269,6 @@ function treeNew(species)
     growingEnd = #branches
   end
 
-  pprint(branches)
   return branches
 end
 
@@ -289,21 +288,31 @@ end
 
 -- Main -----------------------------------------------------------
 
-function love.load()
-    screen = love.graphics.newShader(plantFragmentShader, plantVertexShader)
 
-    species = speciesNew()
-    tree = treeNew(species)
-
-    branchQuads = {}
+function treeGetBranchQuads(tree)
+    local branchQuads = {}
     for i, b in ipairs(tree) do
       local q = branchToQuad(b)
       for d = 1, 4 do
         table.insert(branchQuads, { q[d].x, q[d].y })
       end
     end
+    return branchQuads
+end
 
-    pprint(branchQuads)
+function love.load()
+    screen = love.graphics.newShader(plantFragmentShader, plantVertexShader)
+
+    species = speciesNew()
+
+    trees = {}
+    for i = 1, 9 do
+      local tree = treeNew(species)
+      tree.branchQuads = treeGetBranchQuads(tree)
+      table.insert(trees, tree)
+    end
+
+
 end
 
 function love.draw()
@@ -311,21 +320,27 @@ function love.draw()
     local ww = love.graphics.getWidth()
     local wh = love.graphics.getHeight()
 
-    local s = math.floor(0.8 * math.min(ww, wh))
-    local x = math.floor(ww / 2 - s / 2)
-    local y = math.floor(wh / 2 - s / 2)
+    local s = math.floor(0.3 * math.min(ww, wh))
 
-    local shaderQuad = {
-        x - 0, y - 0,
-        x + s, y - 0,
-        x + s, y + s,
-        x - 0, y + s,
-    }
+    for i = 0, 2 do
+      for j = 0, 2 do
+        local x = 0.05 * ww + 1.01 * s * i
+        local y = 0.05 * wh + 1.01 * s * j
 
-    love.graphics.setShader(screen)
-    screen:send("u_size", { s, s })
-    screen:send("u_topLeft", { x, y })
-    screen:send("u_branches", unpack(branchQuads))
+        local shaderQuad = {
+            x - 0, y - 0,
+            x + s, y - 0,
+            x + s, y + s,
+            x - 0, y + s,
+        }
 
-    love.graphics.polygon("fill", shaderQuad)
+        love.graphics.setShader(screen)
+        screen:send("u_size", { s, s })
+        screen:send("u_topLeft", { x, y })
+        screen:send("u_branches", unpack(trees[i + j * 3 + 1].branchQuads))
+
+        love.graphics.polygon("fill", shaderQuad)
+      end
+    end
+
 end
