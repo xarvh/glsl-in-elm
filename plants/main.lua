@@ -238,7 +238,7 @@ function branchNew(word, maybeParent)
   if maybeParent then
     local parent = maybeParent
     branch.origin = parent.tip
-    branch.angle = branch.word.verticality * parent.angle + angle
+    branch.angle = (1 - branch.word.verticality) * parent.angle + angle
     branch.length = parent.length * rangeRandom(word.length)
     branch.bottomWidth = parent.topWidth * rangeRandom(word.bottomWidth)
   else
