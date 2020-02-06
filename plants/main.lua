@@ -144,6 +144,7 @@ end
 
 -- Ranges --------------------------------------------------------------------
 
+
 function rangeNew(a, b, isInt)
   local r = {}
   r.min = math.min(a, b)
@@ -152,17 +153,25 @@ function rangeNew(a, b, isInt)
   return r
 end
 
+
 function rangeRandom(range)
   if range.isInt then
     return love.math.random(range.min, range.max)
   else
-    return range.min + love.math.random() * (range.max - range.min)
+    return intervalRandom(range.min, range.max)
   end
 end
+
 
 function rangeSub(range)
   return rangeNew(rangeRandom(range), rangeRandom(range))
 end
+
+
+function intervalRandom(min, max)
+  return min + love.math.random() * (max - min)
+end
+
 
 function signRandom()
   if love.math.random(0, 1) == 0 then
@@ -311,6 +320,7 @@ function treeGetBranchQuads(tree)
 end
 
 function love.load()
+    time = 0
     screen = love.graphics.newShader(plantFragmentShader, plantVertexShader)
 
     species = speciesNew()
@@ -323,13 +333,80 @@ function love.load()
     end
 
 
+
+    local leafType = {}
+    for tIndex = 0, 5 do
+      local t = {}
+      table.insert(leafType, t)
+
+      t.r = intervalRandom(0.1, 0.4)
+      t.g = intervalRandom(0.2, 1.0)
+      t.b = intervalRandom(0.1, 0.3)
+
+      t.w = 0.01 --intervalRandom(0.005, 0.02)
+      t.h = t.w --intervalRandom(0.04, 0.12)
+      t.a = intervalRandom(0.3, 0.6) * math.pi
+    end
+
+
+    leaves = {}
+    local ww = love.graphics.getWidth()
+    local wh = love.graphics.getHeight()
+
+    for leafIndex = 1, 12500 do
+        local leaf = {}
+        local t = leafType[love.math.random(1, #leafType)]
+
+        leaf.r = t.r
+        leaf.g = t.g
+        leaf.b = t.b
+
+        leaf.x = love.math.random() * ww
+        leaf.y = love.math.random() * ww
+
+        leaf.w = t.w * ww
+        leaf.h = t.h * ww
+        leaf.angle = signRandom() * t.a
+
+        table.insert(leaves, leaf)
+    end
+
+    --[[
+    local w = 50
+    local h = 50
+    for i = 0, 300 do
+      local rect = {}
+
+      rect.r = 0.0 + 0.5 * love.math.random()
+      rect.g = 0.5 + 0.5 * love.math.random()
+      rect.b = 0.2 + 0.2 * love.math.random()
+      rect.w = w
+      rect.h = h
+      rect.angle = math.pi * love.math.random()
+      table.insert(rects, rect)
+    end
+    --]]
+
+
 end
+
+
+
+
+
+function love.update( dt )
+    time = time + dt
+end
+
+
+
 
 function love.draw()
 
     local ww = love.graphics.getWidth()
     local wh = love.graphics.getHeight()
 
+    --[=[
     local s = math.floor(0.3 * math.min(ww, wh))
 
     for i = 0, 2 do
@@ -352,5 +429,23 @@ function love.draw()
         love.graphics.polygon("fill", shaderQuad)
       end
     end
+    --]=]
+
+
+
+
+    for i, r in ipairs(leaves) do
+      love.graphics.push()
+        love.graphics.setColor(r.r, r.g, r.b)
+        love.graphics.origin()
+        love.graphics.translate(r.x + r.w / 2, r.y + r.h / 2)
+        love.graphics.rotate( r.angle )
+        love.graphics.translate(-r.w / 2, -r.h / 2)
+        love.graphics.rectangle("fill", 0, 0, r.w, r.h)
+      love.graphics.pop()
+    end
+
+
+
 
 end
