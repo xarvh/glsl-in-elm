@@ -2,6 +2,25 @@ local pprint = require('pprint')
 
 
 
+
+--[[
+for any ellipse in listOfEllipses
+  if within range
+    color = colorTexture in ellipsesCoordinates
+    alpha = alphaTexture in ellipsesCoordinates
+
+    colorSum += alpha * color
+    totalAlpha += alpha
+
+color = colorSum / totalAlpha
+]]
+
+
+
+
+
+
+
 local maxBranchesPerTree = 10
 local maxChildrenPerBranch = 3
 
@@ -81,35 +100,61 @@ bool pointInsideQuad(vec2 p, vec2 a, vec2 b, vec2 c, vec2 d) {
  */
 #define branches_per_tree ]] .. maxBranchesPerTree .. "\n" .. [[
 #define vertex_per_branch 4
+#define leaves_per_tree branches_per_tree
 
 varying vec2 v_pos;
 uniform vec2 u_size;
 uniform vec2 u_topLeft;
 uniform vec2 u_branches[branches_per_tree * vertex_per_branch];
+uniform vec4 u_leaves[leaves_per_tree];
 
 vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
 
-    bool isInside = false;
+    bool isInsideBranch = false;
     vec2 ub[] = u_branches;
     for (int b = 0; b < branches_per_tree * vertex_per_branch; b += vertex_per_branch) {
       if (pointInsideQuad(v_pos, ub[b], ub[b + 1], ub[b + 2], ub[b + 3])) {
-        isInside = true;
+        isInsideBranch = true;
         break;
       }
     }
 
-    float d = 99.0;
-    d = min(d, distance(v_pos, ub[0]));
-    d = min(d, distance(v_pos, ub[1]));
-    d = min(d, distance(v_pos, ub[2]));
-    d = min(d, distance(v_pos, ub[3]));
+    vec4 branchColor = vec4(0.48, 0.31, 0.2, 1.0);
 
-    //float g = v_pos.y > 0.0 ? 0.5 : 0.1;
-    float g = sqrt(d);
 
-    vec3 color = isInside ? vec3(1.0) : vec3(0.0, g, 0.0);
 
-    return vec4(color, 1.0);
+    vec3 leavesColorAccum = vec3(0, 0, 0);
+    float leavesAlphaAccum = 0;
+    int leavesCount = 0;
+    for (int l = 1; l < leaves_per_tree; l++) {
+      vec4 leaf = u_leaves[l];
+      vec2 dp = v_pos - leaf.xy;
+      float ww = leaf.z;
+      float hh = leaf.w;
+      if (dp.x * dp.x * hh + dp.y * dp.y * ww <= ww * hh) {
+        float alpha = 0.5;
+        leavesColorAccum += vec3(0.1, 0.9, 0.0) * alpha;
+        leavesAlphaAccum += alpha;
+        leavesCount += 1;
+      }
+    }
+
+
+    vec4 leavesColor = vec4(leavesColorAccum / leavesAlphaAccum, leavesAlphaAccum / leavesCount);
+
+    if (leavesCount == 0) {
+      if (isInsideBranch) {
+        return branchColor;
+      } else {
+        discard;
+      }
+    }
+
+    if (isInsideBranch) {
+      return mix(branchColor, leavesColor, leavesAlphaAccum / leavesCount);
+    }
+
+    return leavesColor;
 }
 
 
@@ -323,6 +368,19 @@ function treeGetBranchQuads(tree)
 end
 
 
+function treeGetLeaves(tree)
+    local leaves = {}
+    for i, b in ipairs(tree) do
+      local w = math.max(b.bottomWidth, b.length)
+      local h = math.min(b.bottomWidth, b.length)
+      table.insert(leaves, { b.tip.x, b.tip.y, w * w, h * h })
+    end
+    return leaves
+end
+
+
+
+
 function love.load()
     time = 0
     plantShader = love.graphics.newShader(plantFragmentShader, plantVertexShader)
@@ -335,6 +393,7 @@ function love.load()
     for i = 1, 9 do
       local tree = treeNew(species)
       tree.branchQuads = treeGetBranchQuads(tree)
+      tree.leaves = treeGetLeaves(tree)
       table.insert(trees, tree)
     end
 
@@ -431,9 +490,11 @@ function love.draw()
         plantShader:send("u_size", { s, s })
         plantShader:send("u_topLeft", { x, y })
         plantShader:send("u_branches", unpack(tree.branchQuads))
+        plantShader:send("u_leaves", unpack(tree.leaves))
 
         love.graphics.polygon("fill", shaderQuad)
 
+        --[[
         for bIndex, b in ipairs(tree) do
           local ww = b.bottomWidth * s
           local hh = b.length * s
@@ -442,6 +503,7 @@ function love.draw()
           love.graphics.setShader()
           love.graphics.draw(foliageImage, xx, yy, ww / foliageImage:getWidth(), hh / foliageImage:getHeight())
         end
+        --]]
 
 
       end
