@@ -126,13 +126,16 @@ function vec2(x, y)
   return v
 end
 
+
 function vec2add(a, b)
   return vec2(a.x + b.x, a.y + b.y)
 end
 
+
 function vec2sub(a, b)
   return vec2(a.x - b.x, a.y - b.y)
 end
+
 
 function vec2rotate(v, angle)
   local sinA = math.sin(-angle)
@@ -319,9 +322,12 @@ function treeGetBranchQuads(tree)
     return branchQuads
 end
 
+
 function love.load()
     time = 0
-    screen = love.graphics.newShader(plantFragmentShader, plantVertexShader)
+    plantShader = love.graphics.newShader(plantFragmentShader, plantVertexShader)
+
+    foliageImage = love.graphics.newImage("leaves.png")
 
     species = speciesNew()
 
@@ -406,7 +412,6 @@ function love.draw()
     local ww = love.graphics.getWidth()
     local wh = love.graphics.getHeight()
 
-    --[=[
     local s = math.floor(0.3 * math.min(ww, wh))
 
     for i = 0, 2 do
@@ -421,19 +426,31 @@ function love.draw()
             x - 0, y + s,
         }
 
-        love.graphics.setShader(screen)
-        screen:send("u_size", { s, s })
-        screen:send("u_topLeft", { x, y })
-        screen:send("u_branches", unpack(trees[i + j * 3 + 1].branchQuads))
+        local tree = trees[i + j * 3 + 1]
+        love.graphics.setShader(plantShader)
+        plantShader:send("u_size", { s, s })
+        plantShader:send("u_topLeft", { x, y })
+        plantShader:send("u_branches", unpack(tree.branchQuads))
 
         love.graphics.polygon("fill", shaderQuad)
+
+        for bIndex, b in ipairs(tree) do
+          local ww = b.bottomWidth * s
+          local hh = b.length * s
+          local xx = x + (0.5 + b.tip.x) * s - ww
+          local yy = y + (0.5 + b.tip.y) * s - hh
+          love.graphics.setShader()
+          love.graphics.draw(foliageImage, xx, yy, ww / foliageImage:getWidth(), hh / foliageImage:getHeight())
+        end
+
+
       end
     end
-    --]=]
 
 
 
 
+    --[=[
     for i, r in ipairs(leaves) do
       love.graphics.push()
         love.graphics.setColor(r.r, r.g, r.b)
@@ -444,6 +461,7 @@ function love.draw()
         love.graphics.rectangle("fill", 0, 0, r.w, r.h)
       love.graphics.pop()
     end
+    --]=]
 
 
 
