@@ -108,6 +108,9 @@ uniform vec2 u_topLeft;
 uniform vec2 u_branches[branches_per_tree * vertex_per_branch];
 uniform vec4 u_leaves[leaves_per_tree];
 
+uniform Image u_alphaBrush;
+uniform Image u_colorBrush;
+
 vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
 
     bool isInsideBranch = false;
@@ -121,21 +124,24 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
 
     vec4 branchColor = vec4(0.48, 0.31, 0.2, 1.0);
 
-
-
     vec3 leavesColorAccum = vec3(0, 0, 0);
     float leavesAlphaAccum = 0;
     int leavesCount = 0;
     for (int l = 1; l < leaves_per_tree; l++) {
       vec4 leaf = u_leaves[l];
-      vec2 dp = v_pos - leaf.xy;
       float ww = leaf.z;
       float hh = leaf.w;
+      vec2 dp = v_pos - leaf.xy;
+
       if (dp.x * dp.x * hh + dp.y * dp.y * ww <= ww * hh) {
-        float alpha = 0.5;
-        leavesColorAccum += vec3(0.1, 0.9, 0.0) * alpha;
-        leavesAlphaAccum += alpha;
-        leavesCount += 1;
+
+        vec3 color = Texel(u_colorBrush, dp + 0.5).r * vec3(0.2, 1.0, 0.1) * 0.6 + vec3(0.1, 0.4, 0.0);
+        float alpha = Texel(u_alphaBrush, dp + 0.5).r > 0.3 ? 1.0 : 0.0;
+        if (alpha > 0.0) {
+          leavesColorAccum += color * alpha;
+          leavesAlphaAccum += alpha;
+          leavesCount += 1;
+        }
       }
     }
 
@@ -372,7 +378,7 @@ function treeGetLeaves(tree)
     local leaves = {}
     for i, b in ipairs(tree) do
       local w = math.max(b.bottomWidth, b.length)
-      local h = math.min(b.bottomWidth, b.length)
+      local h = 2 * math.min(b.bottomWidth, b.length)
       table.insert(leaves, { b.tip.x, b.tip.y, w * w, h * h })
     end
     return leaves
@@ -385,7 +391,8 @@ function love.load()
     time = 0
     plantShader = love.graphics.newShader(plantFragmentShader, plantVertexShader)
 
-    foliageImage = love.graphics.newImage("leaves.png")
+    foliageColor = love.graphics.newImage("foliageBrush1.png")
+    foliageAlpha = love.graphics.newImage("foliageBrush2.png")
 
     species = speciesNew()
 
@@ -491,6 +498,9 @@ function love.draw()
         plantShader:send("u_topLeft", { x, y })
         plantShader:send("u_branches", unpack(tree.branchQuads))
         plantShader:send("u_leaves", unpack(tree.leaves))
+
+        plantShader:send("u_alphaBrush", foliageAlpha)
+        plantShader:send("u_colorBrush", foliageColor)
 
         love.graphics.polygon("fill", shaderQuad)
 
