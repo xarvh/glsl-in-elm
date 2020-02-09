@@ -253,6 +253,7 @@ function love.load()
 
     foliageColor = love.graphics.newImage("foliageBrush1.png")
     foliageAlpha = love.graphics.newImage("foliageBrush2.png")
+    seamlessPlasma1 = love.graphics.newImage("seamlessPlasma1.png")
 
     species = speciesNew()
 
@@ -332,6 +333,19 @@ end
 
 
 
+local recklessErrors = {}
+
+function recklessSend(shader, name, ...)
+  local status, err = pcall(shader.send, shader, name, unpack({...}))
+  if not status then
+    if not recklessErrors[err] then
+      recklessErrors[err] = true
+      print('------------- reckless:')
+      print(err)
+    end
+  end
+end
+
 
 function love.draw()
 
@@ -354,13 +368,14 @@ function love.draw()
 
         local tree = trees[i + j * 3 + 1]
         love.graphics.setShader(plantShader)
-        plantShader:send("u_size", { s, s })
-        plantShader:send("u_topLeft", { x, y })
-        plantShader:send("u_branches", unpack(tree.branchQuads))
-        plantShader:send("u_leaves", unpack(tree.leaves))
+        recklessSend(plantShader, "u_size", { s, s })
+        recklessSend(plantShader, "u_topLeft", { x, y })
+        recklessSend(plantShader, "u_branches", unpack(tree.branchQuads))
+        recklessSend(plantShader, "u_leaves", unpack(tree.leaves))
 
-        plantShader:send("u_alphaBrush", foliageAlpha)
-        plantShader:send("u_colorBrush", foliageColor)
+        recklessSend(plantShader, "u_alphaBrush", foliageAlpha)
+        recklessSend(plantShader, "u_colorBrush", foliageColor)
+        recklessSend(plantShader, "u_shape", seamlessPlasma1)
 
         love.graphics.polygon("fill", shaderQuad)
 

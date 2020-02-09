@@ -56,6 +56,7 @@ uniform vec2 u_topLeft;
 uniform vec2 u_branches[branches_per_tree * vertex_per_branch];
 uniform vec4 u_leaves[leaves_per_tree];
 
+uniform Image u_shape;
 uniform Image u_alphaBrush;
 uniform Image u_colorBrush;
 
@@ -75,30 +76,28 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
     vec3 leavesColorAccum = vec3(0, 0, 0);
     float leavesAlphaAccum = 0;
     int leavesCount = 0;
-    for (int l = 1; l < leaves_per_tree; l++) {
+    //for (int l = 1; l < leaves_per_tree; l++) {
+    for (int l = 1; l < 2; l++) {
       vec4 leaf = u_leaves[l];
       float w = leaf.z;
       float h = leaf.w;
       vec2 dp = v_pos - leaf.xy;
 
-      if (dp.x * dp.x * h * h + dp.y * dp.y * w * w <= w * w * h * h) {
 
-        //vec2 alphaBrushPosition = 0.5 + 0.5 * vec2( dp.x, dp.y );
-        float alpha = Texel(u_alphaBrush, fract(2.0 + 1.5 * v_pos)).r;
-        //alpha = alpha * alpha;
+      float xx = dp.x / w;
+      float yy = dp.y / h;
 
-        vec2 colorBrushPosition = 0.5 + 0.5 * vec2( dp.x / w, dp.y / h);
-        vec3 color = 0.5 * vec3(0.1, 0.6, 0.0) + 0.5 * Texel(u_colorBrush, colorBrushPosition).rgb;
+      float v = Texel(u_shape, vec2(dp.x, dp.y) + 0.5).g * (xx * xx + yy * yy);
 
-        if (alpha > 0.2) {
-          leavesColorAccum += color;
-          leavesAlphaAccum += 1.0;
-          leavesCount += 1;
-        }
-      }
+      vec3 color = vec3(v); //vec3(v < 0.5 ? 1 : 0);
+
+      leavesColorAccum += color;
+      leavesAlphaAccum += 1.0;
+      leavesCount += 1;
     }
 
 
+    //leavesCount = 0;
     vec4 leavesColor = vec4(leavesColorAccum / leavesAlphaAccum, leavesAlphaAccum / leavesCount);
 
     if (leavesCount == 0) {
