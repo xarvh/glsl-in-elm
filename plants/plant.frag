@@ -1,7 +1,8 @@
+#define pi 3.1415926535897932384626433832795
+
 /*
  * This is a GLSL implementation of http://www.jeffreythompson.org/collision-detection/poly-point.php
  */
-
 
 bool pointProjectionIntersectsSegment(vec2 a, vec2 b, vec2 p) {
 
@@ -76,28 +77,26 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
     vec3 leavesColorAccum = vec3(0, 0, 0);
     float leavesAlphaAccum = 0;
     int leavesCount = 0;
-    //for (int l = 1; l < leaves_per_tree; l++) {
-    for (int l = 1; l < 2; l++) {
+    for (int l = 1; l < leaves_per_tree; l++) {
+    //for (int l = 1; l < 2; l++) {
       vec4 leaf = u_leaves[l];
-      float w = leaf.z;
-      float h = leaf.w;
-      vec2 dp = v_pos - leaf.xy;
 
+      vec2 s = leaf.zw;
+      vec2 p = v_pos - leaf.xy;
 
-      float xx = dp.x / w;
-      float yy = dp.y / h;
+      float noise = Texel(u_shape, v_pos).g;
+      float threshold = 0.1;
 
-      float v = Texel(u_shape, vec2(dp.x, dp.y) + 0.5).g * (xx * xx + yy * yy);
+      bool isInsideFoliage = (1 - length(p / s)) * (0.1 + noise) > threshold;
 
-      vec3 color = vec3(v); //vec3(v < 0.5 ? 1 : 0);
-
-      leavesColorAccum += color;
-      leavesAlphaAccum += 1.0;
-      leavesCount += 1;
+      if (isInsideFoliage) {
+        leavesColorAccum += vec3(0.1, 0.6, 0.0);
+        leavesAlphaAccum += 0.5;
+        leavesCount += 1;
+      }
     }
 
 
-    //leavesCount = 0;
     vec4 leavesColor = vec4(leavesColorAccum / leavesAlphaAccum, leavesAlphaAccum / leavesCount);
 
     if (leavesCount == 0) {

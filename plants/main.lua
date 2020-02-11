@@ -237,8 +237,8 @@ end
 function treeGetLeaves(tree)
     local leaves = {}
     for i, b in ipairs(tree) do
-      local w = math.max(b.bottomWidth, b.length)
-      local h = 2 * math.min(b.bottomWidth, b.length)
+      local w = 0.8 * math.max(b.bottomWidth, b.length)
+      local h = 4.0 * math.min(b.bottomWidth, b.length)
       table.insert(leaves, { b.tip.x, b.tip.y, w, h })
     end
     return leaves
@@ -254,6 +254,7 @@ function love.load()
     foliageColor = love.graphics.newImage("foliageBrush1.png")
     foliageAlpha = love.graphics.newImage("foliageBrush2.png")
     seamlessPlasma1 = love.graphics.newImage("seamlessPlasma1.png")
+    seamlessPlasma1:setWrap("repeat", "repeat")
 
     species = speciesNew()
 
