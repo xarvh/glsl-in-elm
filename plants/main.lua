@@ -251,8 +251,10 @@ function love.load()
     time = 0
     plantShader = love.graphics.newShader(plantFragmentShader, plantVertexShader)
 
-    foliageColor = love.graphics.newImage("foliageBrush1.png")
+    seamlessPlasmaColor = love.graphics.newImage("seamlessPlasmaColor.png")
+    seamlessPlasmaColor:setWrap("repeat", "repeat")
     foliageAlpha = love.graphics.newImage("foliageBrush2.png")
+    foliageAlpha:setWrap("repeat", "repeat")
     seamlessPlasma1 = love.graphics.newImage("seamlessPlasma1.png")
     seamlessPlasma1:setWrap("repeat", "repeat")
 
@@ -375,7 +377,7 @@ function love.draw()
         recklessSend(plantShader, "u_leaves", unpack(tree.leaves))
 
         recklessSend(plantShader, "u_alphaBrush", foliageAlpha)
-        recklessSend(plantShader, "u_colorBrush", foliageColor)
+        recklessSend(plantShader, "u_colorMap", seamlessPlasmaColor)
         recklessSend(plantShader, "u_shape", seamlessPlasma1)
 
         love.graphics.polygon("fill", shaderQuad)
