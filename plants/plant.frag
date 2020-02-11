@@ -76,10 +76,14 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
 
     vec3 leavesColor;
     bool haveFoliage = false;
-    // TODO use an ad-hoc texture for this
-    // TODO as an alternative, use TWO textures with two per-tree offset
-    // both to reduce repeating artifacts and to smooth the values
-    if (Texel(u_shape, 1.4 * v_pos - 7 * ub[0]).r > 0.2) {
+
+    // Use the 3 channels as 3 different textures to reduce repeating
+    // artifacts and to smooth the values.
+    float t1 = Texel(u_colorMap, 5.4 * v_pos - 3 * ub[3]).r;
+    float t2 = Texel(u_colorMap, 8.7 * v_pos - 5 * ub[7]).g;
+    float t3 = Texel(u_colorMap, 6.3 * v_pos - 7 * ub[11]).b;
+
+    if (t1 * t2 * t3 > 0.05) {
       for (int l = 0; l < leaves_per_tree; l++) {
       //for (int l = 1; l < 2; l++) {
         vec4 leaf = u_leaves[l];
