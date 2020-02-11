@@ -83,9 +83,8 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
     float t2 = Texel(u_colorMap, 8.7 * v_pos - 5 * ub[7]).g;
     float t3 = Texel(u_colorMap, 6.3 * v_pos - 7 * ub[11]).b;
 
-    if (t1 * t2 * t3 > 0.05) {
+    if (t1 + t2 + t3 > 1.3) {
       for (int l = 0; l < leaves_per_tree; l++) {
-      //for (int l = 1; l < 2; l++) {
         vec4 leaf = u_leaves[l];
 
         // z, w are width and height
