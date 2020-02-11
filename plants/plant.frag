@@ -75,47 +75,48 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
     vec4 branchColor = vec4(0.48, 0.31, 0.2, 1.0);
 
     vec3 leavesColor;
-    bool haveLeaves = false;
-    vec2 p;
-    for (int l = 0; l < leaves_per_tree; l++) {
-    //for (int l = 1; l < 2; l++) {
-      vec4 leaf = u_leaves[l];
+    bool haveFoliage = false;
+    // TODO use an ad-hoc texture for this
+    // TODO as an alternative, use TWO textures with two per-tree offset
+    // both to reduce repeating artifacts and to smooth the values
+    if (Texel(u_shape, 1.4 * v_pos - 7 * ub[0]).r > 0.2) {
+      for (int l = 0; l < leaves_per_tree; l++) {
+      //for (int l = 1; l < 2; l++) {
+        vec4 leaf = u_leaves[l];
 
-      // z, w are width and height
-      p = (v_pos - leaf.xy) / leaf.zw;
+        // z, w are width and height
+        vec2 p = (v_pos - leaf.xy) / leaf.zw;
 
-      float noise = Texel(u_shape, v_pos).g;
-      float threshold = 0.1;
+        float noise = Texel(u_shape, v_pos).g;
+        float threshold = 0.1;
 
-      bool isInsideFoliage = (1 - length(p)) * (0.1 + noise) > threshold;
+        bool isInsideFoliage = (1 - length(p)) * (0.1 + noise) > threshold;
 
-      if (isInsideFoliage) {
-          float v = Texel(u_colorMap, v_pos).g;
-          // varying the color with the height gives a bit more of volume to the foliage
-          float k = 1.0 - 0.9 * p.y;
-          vec3 color = mix(vec3(0.03, 0.23, 0.01), vec3(0.04, 0.56, 0.04), v * k);
-          if (!haveLeaves) {
-            leavesColor = color;
-            haveLeaves = true;
-          } else {
-            leavesColor = mix(leavesColor, color, Texel(u_shape, p).b);
-          }
+        if (isInsideFoliage) {
+            float v = Texel(u_colorMap, v_pos).g;
+            // varying the color with the height gives a bit more of volume to the foliage
+            float k = 1.0 - 0.9 * p.y;
+            vec3 color = mix(vec3(0.03, 0.23, 0.01), vec3(0.04, 0.56, 0.04), v * k);
+            if (!haveFoliage) {
+              leavesColor = color;
+              haveFoliage = true;
+            } else {
+              leavesColor = mix(leavesColor, color, Texel(u_shape, p).b);
+            }
+        }
       }
     }
 
-    if (!haveLeaves) {
+    if (!haveFoliage) {
       if (isInsideBranch) {
         return branchColor;
       } else {
+        // TODO discard
         return vec4(0.1, 0.1, 0.9, 1.0);
       }
     }
 
-    if (isInsideBranch) {
-      return Texel(u_shape, p).r > 0.3 ? vec4(leavesColor, 1.0) : branchColor;
-    }
-
-    return vec4(leavesColor.rgb, 1.0);
+    return vec4(leavesColor, 1.0);
 }
 
 
