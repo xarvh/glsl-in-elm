@@ -74,15 +74,15 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
 
     vec4 branchColor = vec4(0.48, 0.31, 0.2, 1.0);
 
-    vec3 leavesColorAccum = vec3(0, 0, 0);
-    float leavesAlphaAccum = 0;
-    int leavesCount = 0;
+    vec3 leavesColor;
+    bool haveLeaves = false;
+    vec2 p;
     for (int l = 0; l < leaves_per_tree; l++) {
     //for (int l = 1; l < 2; l++) {
       vec4 leaf = u_leaves[l];
 
       // z, w are width and height
-      vec2 p = (v_pos - leaf.xy) / leaf.zw;
+      p = (v_pos - leaf.xy) / leaf.zw;
 
       float noise = Texel(u_shape, v_pos).g;
       float threshold = 0.1;
@@ -93,17 +93,17 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
           float v = Texel(u_colorMap, v_pos).g;
           // varying the color with the height gives a bit more of volume to the foliage
           float k = 1.0 - 0.9 * p.y;
-          float alpha = Texel(u_shape, v_pos).b;
-          leavesColorAccum = mix(vec3(0.03, 0.23, 0.01), vec3(0.04, 0.56, 0.04), v * k) * alpha;
-          leavesAlphaAccum = alpha;
-          leavesCount = 1;
+          vec3 color = mix(vec3(0.03, 0.23, 0.01), vec3(0.04, 0.56, 0.04), v * k);
+          if (!haveLeaves) {
+            leavesColor = color;
+            haveLeaves = true;
+          } else {
+            leavesColor = mix(leavesColor, color, Texel(u_shape, p).b);
+          }
       }
     }
 
-
-    vec4 leavesColor = vec4(leavesColorAccum / leavesAlphaAccum, leavesAlphaAccum / leavesCount);
-
-    if (leavesCount == 0) {
+    if (!haveLeaves) {
       if (isInsideBranch) {
         return branchColor;
       } else {
@@ -112,7 +112,7 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
     }
 
     if (isInsideBranch) {
-      return mix(branchColor, vec4(leavesColorAccum / leavesAlphaAccum, 1.0), 0.6);
+      return Texel(u_shape, p).r > 0.3 ? vec4(leavesColor, 1.0) : branchColor;
     }
 
     return vec4(leavesColor.rgb, 1.0);
