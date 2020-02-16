@@ -56,6 +56,8 @@ uniform vec2 u_size;
 uniform vec2 u_topLeft;
 uniform vec2 u_branches[branches_per_tree * vertex_per_branch];
 uniform vec4 u_leaves[leaves_per_tree];
+uniform vec3 u_topColor;
+uniform vec3 u_bottomColor;
 
 uniform Image u_shape;
 uniform Image u_alphaBrush;
@@ -79,11 +81,12 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
 
     // Use the 3 channels as 3 different textures to reduce repeating
     // artifacts and to smooth the values.
-    float t1 = Texel(u_colorMap, 5.4 * v_pos - 3 * ub[3]).r;
-    float t2 = Texel(u_colorMap, 8.7 * v_pos - 5 * ub[7]).g;
-    float t3 = Texel(u_colorMap, 6.3 * v_pos - 7 * ub[11]).b;
+    float t = 0;
+    t += Texel(u_colorMap, 5.4 * v_pos - 3 * ub[3]).r;
+    t += Texel(u_colorMap, 8.7 * v_pos - 5 * ub[7]).g;
+    t += Texel(u_colorMap, 6.3 * v_pos - 7 * ub[11]).b;
 
-    if (t1 + t2 + t3 > 1.3) {
+    if (t > 1.3) {
       for (int l = 0; l < leaves_per_tree; l++) {
         vec4 leaf = u_leaves[l];
 
@@ -99,7 +102,8 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
             float v = Texel(u_colorMap, v_pos).g;
             // varying the color with the height gives a bit more of volume to the foliage
             float k = 1.0 - 0.9 * p.y;
-            vec3 color = mix(vec3(0.03, 0.23, 0.01), vec3(0.04, 0.56, 0.04), v * k);
+           // vec3 color = mix(vec3(0.03, 0.23, 0.01), vec3(0.04, 0.56, 0.04), v * k);
+            vec3 color = mix(0.5 * u_topColor, u_topColor, v * k);
             if (!haveFoliage) {
               leavesColor = color;
               haveFoliage = true;

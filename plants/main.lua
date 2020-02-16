@@ -1,4 +1,5 @@
 local pprint = require('pprint')
+local hsl = require('hsl')
 
 
 local maxBranchesPerTree = 10
@@ -136,6 +137,27 @@ function speciesNew()
     table.insert(species, makeSpeciesWord(ranges, wordsCount))
   end
 
+  function randomFoliageHsl()
+    return
+      { intervalRandom(70, 145)
+      , intervalRandom(0.6, 0.9)
+      , intervalRandom(0.3, 1.0)
+      }
+  end
+
+  local a = randomFoliageHsl()
+  local b = randomFoliageHsl()
+
+  -- compare Lightnes to put the darker color on the bottom
+  if (a[2] > b[2]) then
+    b, a = a, b
+  end
+
+  species.foliageBottomColor = hsl.toRgb(unpack(a))
+  species.foliageTopColor = hsl.toRgb(unpack(b))
+
+  pprint(a, b)
+
   return species
 end
 
@@ -202,6 +224,8 @@ function treeNew(species)
     growingEnd = #branches
   end
 
+  branches.species = species
+
   return branches
 end
 
@@ -238,7 +262,7 @@ function treeGetLeaves(tree)
     local leaves = {}
     for i, b in ipairs(tree) do
       local w = 0.8 * math.max(b.bottomWidth, b.length)
-      local h = 4.0 * math.min(b.bottomWidth, b.length)
+      local h = 6.0 * math.min(b.bottomWidth, b.length)
       table.insert(leaves, { b.tip.x, b.tip.y, w, h })
     end
     return leaves
@@ -376,9 +400,12 @@ function love.draw()
         recklessSend(plantShader, "u_branches", unpack(tree.branchQuads))
         recklessSend(plantShader, "u_leaves", unpack(tree.leaves))
 
-        recklessSend(plantShader, "u_alphaBrush", foliageAlpha)
+        --recklessSend(plantShader, "u_alphaBrush", foliageAlpha)
         recklessSend(plantShader, "u_colorMap", seamlessPlasmaColor)
         recklessSend(plantShader, "u_shape", seamlessPlasma1)
+
+        recklessSend(plantShader, "u_topColor", tree.species.foliageTopColor)
+        recklessSend(plantShader, "u_bottomColor", tree.species.foliageBottomColor)
 
         love.graphics.polygon("fill", shaderQuad)
 
@@ -396,6 +423,26 @@ function love.draw()
 
       end
     end
+
+
+
+    --[[
+    for i = 0, 60 do
+      love.graphics.push()
+        love.graphics.setShader() --unpack(rgb))
+
+        local rgb = hsl.toRgb(i * 6, 0.9, 0.95)
+        love.graphics.setColor(unpack(rgb))
+
+        love.graphics.origin()
+        love.graphics.translate(40 + i * 10, 180)
+        --love.graphics.rotate( r.angle )
+        --love.graphics.translate(-r.w / 2, -r.h / 2)
+        love.graphics.rectangle("fill", 0, 0, 40, 40)
+      love.graphics.pop()
+    end
+    --]]
+
 
 
 
