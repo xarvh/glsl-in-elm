@@ -102,8 +102,12 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
             float v = Texel(u_colorMap, v_pos).g;
             // varying the color with the height gives a bit more of volume to the foliage
             float k = 1.0 - 0.9 * p.y;
-           // vec3 color = mix(vec3(0.03, 0.23, 0.01), vec3(0.04, 0.56, 0.04), v * k);
+            // TODO v and k are not evenly strecthed between 0 and 1, this reassignement is only a work around
+            v = (v - 0.4) / 0.6;
+            k = (k - 0.5) / 0.5;
+            //vec3 color = mix(vec3(0.03, 0.23, 0.01), vec3(0.04, 0.56, 0.04), v * k);
             vec3 color = mix(0.5 * u_topColor, u_topColor, v * k);
+            //vec3 color = vec3(v * k);
             if (!haveFoliage) {
               leavesColor = color;
               haveFoliage = true;

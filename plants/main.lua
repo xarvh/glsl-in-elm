@@ -139,9 +139,9 @@ function speciesNew()
 
   function randomFoliageHsl()
     return
-      { intervalRandom(70, 145)
-      , intervalRandom(0.6, 0.9)
-      , intervalRandom(0.3, 1.0)
+      { intervalRandom(50, 165)
+      , intervalRandom(0.8, 0.9)
+      , intervalRandom(0.15, 0.6)
       }
   end
 
