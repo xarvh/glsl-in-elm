@@ -2,6 +2,9 @@
 
 varying vec2 v_pos;
 uniform Image u_colorMap;
+uniform Image u_t1;
+uniform Image u_t2;
+uniform Image u_t3;
 
 
 
@@ -14,10 +17,10 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
     corners[3] = vec2(-0.5,  0.5);
 
     vec3 colors[4];
-    colors[0] = vec3(1, 0, 0);
-    colors[1] = vec3(0, 1, 0);
-    colors[2] = vec3(0, 0, 1);
-    colors[3] = vec3(0, 0, 0);
+    colors[0] = Texel(u_t1, 0.1 * v_pos).rgb;
+    colors[1] = Texel(u_t2, 0.5 * v_pos).rgb;
+    colors[2] = Texel(u_t3, 0.9 * v_pos).rgb;
+    colors[3] = Texel(u_t1, 0.9 * v_pos).rgb;
 
     vec3 color = vec3(0, 0, 0);
     float weights[4];

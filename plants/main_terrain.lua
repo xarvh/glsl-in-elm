@@ -32,6 +32,18 @@ function love.load()
 
     seamlessPlasmaColor = love.graphics.newImage("seamlessPlasmaColor.png")
     seamlessPlasmaColor:setWrap("repeat", "repeat")
+
+
+    t1 = love.graphics.newImage("burnt_sand.png")
+    t1:setWrap("repeat", "repeat")
+
+    t2 = love.graphics.newImage("burnt_sand_light.png")
+    t2:setWrap("repeat", "repeat")
+
+    t3 = love.graphics.newImage("burnt_sand_lighter.png")
+    t3:setWrap("repeat", "repeat")
+
+
 end
 
 
@@ -81,6 +93,9 @@ function love.draw()
     recklessSend(terrainShader, "u_size", { s, s })
     recklessSend(terrainShader, "u_topLeft", { x, y })
     recklessSend(terrainShader, "u_colorMap", seamlessPlasmaColor)
+    recklessSend(terrainShader, "u_t1", t1)
+    recklessSend(terrainShader, "u_t2", t2)
+    recklessSend(terrainShader, "u_t3", t3)
     love.graphics.polygon("fill", shaderQuad)
 
 end
