@@ -1,1 +1,1 @@
-require('main_terrain')
+require('terrain_main')
