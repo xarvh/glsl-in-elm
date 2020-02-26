@@ -96,6 +96,7 @@ function love.draw()
     recklessSend(terrainShader, "u_t1", t1)
     recklessSend(terrainShader, "u_t2", t2)
     recklessSend(terrainShader, "u_t3", t3)
+    recklessSend(terrainShader, "time", time)
     love.graphics.polygon("fill", shaderQuad)
 
 end
