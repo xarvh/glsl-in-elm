@@ -73,7 +73,7 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
     terrains[2].noise = 1;
     terrains[3].noise = 1;
 
-    terrains[0].solidRadius = clamp(0.49 * (1 + 0.9 * (Texel(u_colorMap, v_pos).r - 0.5)) * (0.6 + 0.4 * sin(2.0 * time)), 0, 0.49);
+    terrains[0].solidRadius = clamp(0.49 * (1 + 0.9 * (Texel(u_colorMap, v_pos).r - 0.5)) * (0.6 + 0.4 * sin(0.7 * time)), 0, 0.49);
     terrains[1].solidRadius = clamp(0.49 * (1 + 0.9 * (Texel(u_colorMap, v_pos).g - 0.5)), 0, 0.49);
     terrains[2].solidRadius = clamp(0.49 * (1 + 0.9 * (Texel(u_colorMap, v_pos).b - 0.5)), 0, 0.49);
     terrains[3].solidRadius = clamp(0.49 * (1 + 0.9 * (Texel(u_colorMap, v_pos).r - 0.5)), 0, 0.49);
@@ -100,12 +100,6 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
           // When the projection lies between O and D its values should go from 0 (O) to 1 (D).
           float normalizedProjection = dot(v_pos - o, d - o) / dot(d - o, d - o);
 
-          /*
-          if ( abs(normalizedProjection - 0.5) < 0.03 ) {
-            colorAccumulator += vec3(1, 0, 0);
-            totalWeight += 1;
-          } else {
-          */
 
           vec3 interpolatedColor = mix(origin.color, dest.color, clamp(normalizedProjection, 0, 1));
 
@@ -114,11 +108,13 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
           float di = distanceBetweenPointAndSegment(v_pos, o, d);
           float weight = 1 - di;
 
-          colorAccumulator += interpolatedColor * weight;
-          totalWeight += weight;
-          /*
+          if (oIndex == 0 && dIndex == 1 && abs(normalizedProjection - 0.5) < 0.03 ) {
+            colorAccumulator += weight * vec3(1, 1, 1);
+            totalWeight += weight;
+          } else {
+            colorAccumulator += interpolatedColor * weight;
+            totalWeight += weight;
           }
-          */
       }
     }
 
