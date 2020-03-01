@@ -1,29 +1,5 @@
 #define pi 3.1415926535897932384626433832795
 
-varying vec2 v_pos;
-uniform Image u_colorMap;
-uniform Image u_t1;
-uniform Image u_t2;
-uniform Image u_t3;
-uniform float time;
-
-
-struct Terrain {
-    vec2 corner;
-    vec3 color;
-    float noise;
-    float solidRadius;
-};
-
-
-
-
-float getNearness(Terrain t) {
-    return t.solidRadius - distance(t.corner, v_pos);
-}
-
-
-
 
 
 /*
@@ -47,37 +23,73 @@ float distanceBetweenPointAndSegment(vec2 p, vec2 v, vec2 w) {
 
 
 
-vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
 
-    Terrain terrains[4];
+#define TERRAIN_WIDTH @@TERRAIN_WIDTH@@
+#define TERRAIN_HEIGHT @@TERRAIN_HEIGHT@@
+#define TERRAIN_TYPES_COUNT @@TERRAIN_TYPES_COUNT@@
+#define TERRAIN_TEXTURES_COUNT @@TERRAIN_TEXTURES_COUNT@@
 
-    terrains[0].corner = vec2(-0.5, -0.5);
-    terrains[1].corner = vec2( 0.5, -0.5);
-    terrains[2].corner = vec2( 0.5,  0.5);
-    terrains[3].corner = vec2(-0.5,  0.5);
 
-    /*
-    terrains[0].color = vec3(1, 0, 0);
-    terrains[1].color = vec3(0, 1, 0);
-    terrains[2].color = vec3(0, 0, 1);
-    terrains[3].color = vec3(1, 0, 0);
-    */
 
-    terrains[0].color = Texel(u_t1, 0.1 * v_pos).rgb;
-    terrains[1].color = Texel(u_t2, 0.5 * v_pos).rgb;
-    terrains[2].color = Texel(u_t3, 0.9 * v_pos).rgb;
-    terrains[3].color = Texel(u_t1, 0.9 * v_pos).rgb;
+struct TerrainType {
+    int colorTextureIndex;
+    float colorTextureScale;
 
-    terrains[0].noise = 1;
-    terrains[1].noise = 1;
-    terrains[2].noise = 1;
-    terrains[3].noise = 1;
+    int noiseTextureIndex;
+    float noiseTextureScale;
 
-    terrains[0].solidRadius = clamp(0.49 * (1 + 0.9 * (Texel(u_colorMap, v_pos).r - 0.5)) * (0.6 + 0.4 * sin(0.7 * time)), 0, 0.49);
-    terrains[1].solidRadius = clamp(0.49 * (1 + 0.9 * (Texel(u_colorMap, v_pos).g - 0.5)), 0, 0.49);
-    terrains[2].solidRadius = clamp(0.49 * (1 + 0.9 * (Texel(u_colorMap, v_pos).b - 0.5)), 0, 0.49);
-    terrains[3].solidRadius = clamp(0.49 * (1 + 0.9 * (Texel(u_colorMap, v_pos).r - 0.5)), 0, 0.49);
+    int boundaries[TERRAIN_TYPES_COUNT];
+};
 
+
+
+varying vec2 v_world_position;
+
+uniform int u_terrain_map[TERRAIN_WIDTH * TERRAIN_HEIGHT];
+uniform TerrainType u_terrains[TERRAIN_TYPES_COUNT];
+uniform Image u_textures[TERRAIN_TEXTURES_COUNT];
+uniform float u_time;
+
+
+
+struct Corner {
+    vec2 position;
+    //TerrainType terrain;
+    float solidRadius;
+    vec3 color;
+};
+
+
+
+vec3 getTerrainColor() {
+
+    Corner corners[4];
+
+    // This is the junction point between the four tiles
+    vec2 junction_center = floor(v_world_position + 0.5);
+
+
+    // And these are the 4 corners we use as base for the interpolation
+    corners[0].position = junction_center + vec2(-0.5, -0.5);
+    corners[1].position = junction_center + vec2( 0.5, -0.5);
+    corners[2].position = junction_center + vec2( 0.5,  0.5);
+    corners[3].position = junction_center + vec2(-0.5,  0.5);
+
+
+    for (int i = 0; i < 4; i++) {
+      vec2 p = corners[i].position;
+
+      int tileIndex = 0;
+      tileIndex += int(clamp(p.x, 0, TERRAIN_WIDTH - 1));
+      tileIndex += int(clamp(p.y, 0, TERRAIN_HEIGHT - 1)) * TERRAIN_WIDTH;
+      TerrainType t = u_terrains[u_terrain_map[tileIndex]];
+
+      float noise = Texel(u_textures[t.noiseTextureIndex], v_world_position * t.noiseTextureScale).g - 0.5;
+      // TODO if animated multiply by `0.6 + 0.4 * sin(0.7 * u_time)`
+      corners[i].solidRadius = clamp(0.49 * (1 + 0.9 * noise), 0, 0.49);
+
+      corners[i].color = Texel(u_textures[t.colorTextureIndex], v_world_position * t.colorTextureScale).rgb;
+    }
 
 
 
@@ -86,26 +98,27 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
     for (int oIndex = 0; oIndex < 4; oIndex++) {
 
       // Origin point of the interpolation
-      Terrain origin = terrains[oIndex];
+      Corner origin = corners[oIndex];
 
+      // TODO dIndex = oIndex + 1
       for (int dIndex = 0; dIndex < 4; dIndex++) if (dIndex != oIndex) {
 
           // Destination point of the interpolation
-          Terrain dest = terrains[dIndex];
+          Corner dest = corners[dIndex];
 
-          vec2 o = intersecateRectWithRadius(origin.corner, dest.corner, origin.solidRadius * origin.noise);
-          vec2 d = intersecateRectWithRadius(dest.corner, origin.corner, dest.solidRadius * dest.noise);
+          vec2 o = intersecateRectWithRadius(origin.position, dest.position, origin.solidRadius);
+          vec2 d = intersecateRectWithRadius(dest.position, origin.position, dest.solidRadius);
 
           // We project v_pos over the OD segment to figure out how to mix origin and dest colors.
           // When the projection lies between O and D its values should go from 0 (O) to 1 (D).
-          float normalizedProjection = dot(v_pos - o, d - o) / dot(d - o, d - o);
+          float normalizedProjection = dot(v_world_position - o, d - o) / dot(d - o, d - o);
 
 
           vec3 interpolatedColor = mix(origin.color, dest.color, clamp(normalizedProjection, 0, 1));
 
           // The interpolated color will be interpolated *again* together with the colors from the other destinations
           // We base the interpolation weight on the distance between v_pos and OD.
-          float di = distanceBetweenPointAndSegment(v_pos, o, d);
+          float di = distanceBetweenPointAndSegment(v_world_position, o, d);
           float weight = 1 - di;
 
           if (oIndex == 0 && dIndex == 1 && abs(normalizedProjection - 0.5) < 0.03 ) {
@@ -118,7 +131,11 @@ vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
       }
     }
 
-    return vec4(colorAccumulator / totalWeight, 1.0);
+    return colorAccumulator / totalWeight;
 }
 
 
+
+vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
+    return vec4(getTerrainColor(), 1.0);
+}

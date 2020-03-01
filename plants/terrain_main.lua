@@ -20,7 +20,32 @@ vec4 position( mat4 transform_projection, vec4 vertex_position )
 
 
 local terrainFragmentShader =
-    love.filesystem.read('terrain.frag')--:gsub('@@maxBranchesPerTree@@', maxBranchesPerTree)
+    love.filesystem.read('terrain.frag')
+      :gsub('@@TERRAIN_WIDTH@@', 4)
+      :gsub('@@TERRAIN_HEIGHT@@', 4)
+      :gsub('@@TERRAIN_TEXTURES_COUNT@@', 4)
+      :gsub('@@TERRAIN_TYPES_COUNT@@', 4)
+
+
+
+terrains = {
+    colorTextureIndex = 1,
+    colorTextureScale = 0.5,
+
+    noiseTextureIndex = 0,
+    noiseTextureScale = 0.5,
+
+    boundaries = {},
+}
+
+terrainMap = {
+  0, 0, 0, 0,
+  0, 0, 0, 0,
+  0, 0, 0, 0,
+  0, 0, 0, 0,
+}
+
+
 
 
 -- Main -----------------------------------------------------------
@@ -90,13 +115,15 @@ function love.draw()
 
 
     love.graphics.setShader(terrainShader)
+    -- Vertex Shader
     recklessSend(terrainShader, "u_size", { s, s })
     recklessSend(terrainShader, "u_topLeft", { x, y })
-    recklessSend(terrainShader, "u_colorMap", seamlessPlasmaColor)
-    recklessSend(terrainShader, "u_t1", t1)
-    recklessSend(terrainShader, "u_t2", t2)
-    recklessSend(terrainShader, "u_t3", t3)
-    recklessSend(terrainShader, "time", time)
+
+    -- Frag Shader
+    recklessSend(terrainShader, "u_terrain_map", unpack(terrainMap))
+    recklessSend(terrainShader, "u_terrains", terrains)
+    recklessSend(terrainShader, "u_textures", seamlessPlasmaColor, t1, t2, t3 )
+    recklessSend(terrainShader, "u_time", time)
     love.graphics.polygon("fill", shaderQuad)
 
 end
