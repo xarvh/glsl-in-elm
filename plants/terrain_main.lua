@@ -32,38 +32,34 @@ local terrainFragmentShader =
 
 terrains = {{
     colorTextureIndex = 1,
-    colorTextureScale = 0.5,
+    colorTextureScale = 0.25,
 
     noiseTextureIndex = 0,
-    noiseTextureScale = 0.5,
+    noiseTextureScale = 1,
+}, {
+    colorTextureIndex = 2,
+    colorTextureScale = 0.25,
 
+    noiseTextureIndex = 1,
+    noiseTextureScale = 1,
 }, {
     colorTextureIndex = 1,
     colorTextureScale = 0.5,
 
     noiseTextureIndex = 0,
     noiseTextureScale = 0.5,
-
 }, {
     colorTextureIndex = 1,
     colorTextureScale = 0.5,
 
     noiseTextureIndex = 0,
     noiseTextureScale = 0.5,
-
-}, {
-    colorTextureIndex = 1,
-    colorTextureScale = 0.5,
-
-    noiseTextureIndex = 0,
-    noiseTextureScale = 0.5,
-
 }}
 
 terrainMap = {
   0, 0, 0, 0,
-  0, 0, 0, 0,
-  0, 0, 0, 0,
+  0, 1, 1, 0,
+  0, 0, 1, 0,
   0, 0, 0, 0,
 }
 
@@ -123,7 +119,7 @@ function love.draw()
     local wh = love.graphics.getHeight()
 
 
-    local s = math.floor(0.3 * math.min(ww, wh))
+    local s = math.floor(0.9 * math.min(ww, wh))
     local x = 0.05 * ww + 1.01
     local y = 0.05 * wh + 1.01
 

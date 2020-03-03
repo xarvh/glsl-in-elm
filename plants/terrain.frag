@@ -67,27 +67,49 @@ vec3 getTerrainColor() {
     // This is the junction point between the four tiles
     vec2 junction_center = floor(v_world_position + 0.5);
 
+    vec2 pos = v_world_position - junction_center;
+
     // And these are the 4 corners we use as base for the interpolation
-    corners[0].position = junction_center + vec2(-0.5, -0.5);
-    corners[1].position = junction_center + vec2( 0.5, -0.5);
-    corners[2].position = junction_center + vec2( 0.5,  0.5);
-    corners[3].position = junction_center + vec2(-0.5,  0.5);
+    corners[0].position = vec2(-0.5, -0.5);
+    corners[1].position = vec2( 0.5, -0.5);
+    corners[2].position = vec2( 0.5,  0.5);
+    corners[3].position = vec2(-0.5,  0.5);
 
 
     for (int i = 0; i < 4; i++) {
-      vec2 p = corners[i].position;
+      vec2 p = junction_center + corners[i].position;
 
       int tileIndex = 0;
       tileIndex += int(clamp(p.x, 0, TERRAIN_WIDTH - 1));
       tileIndex += int(clamp(p.y, 0, TERRAIN_HEIGHT - 1)) * TERRAIN_WIDTH;
       TerrainType t = u_terrains[u_terrain_map[tileIndex]];
 
-      float noise = Texel(u_textures[t.noiseTextureIndex], v_world_position * t.noiseTextureScale).g - 0.5;
+      // TODO this is ugly
+      vec4 noise_v = Texel(u_textures[0], v_world_position * t.noiseTextureScale);
+      float noise;
+      if (t.noiseTextureIndex == 0) noise = noise_v.r;
+      else if (t.noiseTextureIndex == 1) noise = noise_v.g;
+      else noise = noise_v.b;
+
       // TODO if animated multiply by `0.6 + 0.4 * sin(0.7 * u_time)`
-      corners[i].solidRadius = clamp(0.49 * (1 + 0.9 * noise), 0, 0.49);
+      corners[i].solidRadius = clamp(0.49 * (0.4 + 0.6 * noise), 0, 0.49);
 
       corners[i].color = Texel(u_textures[t.colorTextureIndex], v_world_position * t.colorTextureScale).rgb;
     }
+
+
+    /*
+    for (int i = 0; i < 4; i++) {
+      if (distance(corners[i].position, pos) < corners[i].solidRadius) {
+        if (i == 0) return vec3(1, 0, 0);
+        if (i == 1) return vec3(0, 1, 0);
+        if (i == 2) return vec3(0, 0, 1);
+        if (i == 3) return vec3(1, 0, 1);
+      }
+    }
+    */
+
+
 
     vec3 colorAccumulator = vec3(0, 0, 0.002);
     float totalWeight = 0.01;
@@ -107,23 +129,25 @@ vec3 getTerrainColor() {
 
           // We project v_pos over the OD segment to figure out how to mix origin and dest colors.
           // When the projection lies between O and D its values should go from 0 (O) to 1 (D).
-          float normalizedProjection = dot(v_world_position - o, d - o) / dot(d - o, d - o);
+          float normalizedProjection = dot(pos - o, d - o) / dot(d - o, d - o);
 
 
           vec3 interpolatedColor = mix(origin.color, dest.color, clamp(normalizedProjection, 0, 1));
 
           // The interpolated color will be interpolated *again* together with the colors from the other destinations
           // We base the interpolation weight on the distance between v_pos and OD.
-          float di = distanceBetweenPointAndSegment(v_world_position, o, d);
+          float di = distanceBetweenPointAndSegment(pos, o, d);
           float weight = 1 - di;
 
+          /*
           if (oIndex == 0 && dIndex == 1 && abs(normalizedProjection - 0.5) < 0.03 ) {
             colorAccumulator += weight * vec3(1, 1, 1);
             totalWeight += weight;
           } else {
+          */
             colorAccumulator += interpolatedColor * weight;
             totalWeight += weight;
-          }
+          //}
       }
     }
 
