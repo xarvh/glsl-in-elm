@@ -6,11 +6,13 @@ local plantVertexShader = [[
 
 uniform vec2 u_size;
 uniform vec2 u_topLeft;
-varying vec2 v_pos;
+varying vec2 v_world_position;
 
 vec4 position( mat4 transform_projection, vec4 vertex_position )
 {
-    v_pos = (vertex_position.xy - u_topLeft) / u_size - 0.5;
+    vec2 normalized_position = (vertex_position.xy - u_topLeft) / u_size - 0.5;
+
+    v_world_position = (normalized_position + 0.5) * 4;
 
     return transform_projection * vertex_position;
 }
@@ -28,15 +30,35 @@ local terrainFragmentShader =
 
 
 
-terrains = {
+terrains = {{
     colorTextureIndex = 1,
     colorTextureScale = 0.5,
 
     noiseTextureIndex = 0,
     noiseTextureScale = 0.5,
 
-    boundaries = {},
-}
+}, {
+    colorTextureIndex = 1,
+    colorTextureScale = 0.5,
+
+    noiseTextureIndex = 0,
+    noiseTextureScale = 0.5,
+
+}, {
+    colorTextureIndex = 1,
+    colorTextureScale = 0.5,
+
+    noiseTextureIndex = 0,
+    noiseTextureScale = 0.5,
+
+}, {
+    colorTextureIndex = 1,
+    colorTextureScale = 0.5,
+
+    noiseTextureIndex = 0,
+    noiseTextureScale = 0.5,
+
+}}
 
 terrainMap = {
   0, 0, 0, 0,
@@ -121,7 +143,14 @@ function love.draw()
 
     -- Frag Shader
     recklessSend(terrainShader, "u_terrain_map", unpack(terrainMap))
-    recklessSend(terrainShader, "u_terrains", terrains)
+
+    for i, terrain in ipairs(terrains) do
+      n = "[" .. (i - 1) .. "]"
+      for k, v in pairs(terrain) do
+        recklessSend(terrainShader, "u_terrains" .. n .. "." .. k, v);
+      end
+    end
+
     recklessSend(terrainShader, "u_textures", seamlessPlasmaColor, t1, t2, t3 )
     recklessSend(terrainShader, "u_time", time)
     love.graphics.polygon("fill", shaderQuad)

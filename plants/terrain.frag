@@ -37,9 +37,8 @@ struct TerrainType {
 
     int noiseTextureIndex;
     float noiseTextureScale;
-
-    int boundaries[TERRAIN_TYPES_COUNT];
 };
+    //int boundaries[TERRAIN_TYPES_COUNT];
 
 
 
@@ -68,7 +67,6 @@ vec3 getTerrainColor() {
     // This is the junction point between the four tiles
     vec2 junction_center = floor(v_world_position + 0.5);
 
-
     // And these are the 4 corners we use as base for the interpolation
     corners[0].position = junction_center + vec2(-0.5, -0.5);
     corners[1].position = junction_center + vec2( 0.5, -0.5);
@@ -90,8 +88,6 @@ vec3 getTerrainColor() {
 
       corners[i].color = Texel(u_textures[t.colorTextureIndex], v_world_position * t.colorTextureScale).rgb;
     }
-
-
 
     vec3 colorAccumulator = vec3(0, 0, 0.002);
     float totalWeight = 0.01;
@@ -138,4 +134,5 @@ vec3 getTerrainColor() {
 
 vec4 effect(vec4 _, Image __, vec2 ___, vec2 ____ ) {
     return vec4(getTerrainColor(), 1.0);
+    //return vec4(u_terrains[2].colorTextureScale + 0.000001 * u_terrains[2].colorTextureIndex);
 }
