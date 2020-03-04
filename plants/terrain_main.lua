@@ -36,24 +36,32 @@ terrains = {{
 
     noiseTextureIndex = 0,
     noiseTextureScale = 1,
+
+    animationSpeed = 0.7,
 }, {
     colorTextureIndex = 2,
     colorTextureScale = 0.25,
 
     noiseTextureIndex = 1,
     noiseTextureScale = 1,
+
+    animationSpeed = 0,
 }, {
     colorTextureIndex = 1,
     colorTextureScale = 0.5,
 
     noiseTextureIndex = 0,
     noiseTextureScale = 0.5,
+
+    animationSpeed = 0,
 }, {
     colorTextureIndex = 1,
     colorTextureScale = 0.5,
 
     noiseTextureIndex = 0,
     noiseTextureScale = 0.5,
+
+    animationSpeed = 0,
 }}
 
 terrainMap = {

@@ -37,6 +37,8 @@ struct TerrainType {
 
     int noiseTextureIndex;
     float noiseTextureScale;
+
+    float animationSpeed;
 };
     //int boundaries[TERRAIN_TYPES_COUNT];
 
@@ -91,8 +93,9 @@ vec3 getTerrainColor() {
       else if (t.noiseTextureIndex == 1) noise = noise_v.g;
       else noise = noise_v.b;
 
-      // TODO if animated multiply by `0.6 + 0.4 * sin(0.7 * u_time)`
-      corners[i].solidRadius = clamp(0.49 * (0.4 + 0.6 * noise), 0, 0.49);
+      float n = 0.4 + 0.6 * noise;
+      float a = 0.6 + 0.4 * cos(t.animationSpeed * u_time);
+      corners[i].solidRadius = 0.49 * n * a;
 
       corners[i].color = Texel(u_textures[t.colorTextureIndex], v_world_position * t.colorTextureScale).rgb;
     }
@@ -139,15 +142,13 @@ vec3 getTerrainColor() {
           float di = distanceBetweenPointAndSegment(pos, o, d);
           float weight = 1 - di;
 
-          /*
           if (oIndex == 0 && dIndex == 1 && abs(normalizedProjection - 0.5) < 0.03 ) {
             colorAccumulator += weight * vec3(1, 1, 1);
             totalWeight += weight;
           } else {
-          */
             colorAccumulator += interpolatedColor * weight;
             totalWeight += weight;
-          //}
+          }
       }
     }
 
